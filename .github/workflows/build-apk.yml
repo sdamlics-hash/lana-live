@@ -17,8 +17,10 @@ jobs:
       - name: Unpack project
         run: unzip -o LANA_LIVE_GITHUB_READY.zip -d source
 
-      - name: Enable AndroidX
-        run: echo "android.useAndroidX=true" > source/gradle.properties
+      - name: Configure Android build
+        run: |
+          echo "android.useAndroidX=true" > source/gradle.properties
+          sed -i '/compileSdk = 35/a\    kotlinOptions { jvmTarget = "1.8" }' source/app/build.gradle.kts
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -39,4 +41,3 @@ jobs:
         with:
           name: LANA-LIVE-APK
           path: source/app/build/outputs/apk/debug/app-debug.apk
-          
