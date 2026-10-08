@@ -1,4 +1,4 @@
-name: Build LANA LIVE V2 APK
+name: Build LANA V3.3 APK
 
 on:
   workflow_dispatch:
@@ -9,12 +9,13 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Unpack project
-        run: unzip -o LANA_LIVE_GITHUB_READY_V2.zip -d source
+      - name: Unpack LANA V3.3
+        run: unzip -o LANA_V3_3_ANDROID_APP_SOURCE.zip -d source
 
       - name: Configure Android build
         run: |
@@ -38,6 +39,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: LANA-LIVE-V2-APK
+          name: LANA-V3.3-APK
           path: source/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
