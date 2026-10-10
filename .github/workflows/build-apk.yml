@@ -36,7 +36,7 @@ jobs:
           echo "android.useAndroidX=true" > source/gradle.properties
           sed -i '/compileSdk = 35/a\    kotlinOptions { jvmTarget = "1.8" }' source/app/build.gradle.kts
           # Parallel preview install: avoid overwriting an app signed with another key.
-          sed -i 's/applicationId = "ai.dreibus.lanalive"/applicationId = "ai.dreibus.lanalive.preview"/' source/app/build.gradle.kts
+          sed -i 's/applicationId = "ai.dreibus.lanalive"/applicationId = "ai.dreibus.lanalive.preview2"/' source/app/build.gradle.kts
           sed -i 's/android:label="LANA LIVE"/android:label="LANA TEST"/' source/app/src/main/AndroidManifest.xml
 
       - name: Fix Russian voice replies and show TTS diagnostics
