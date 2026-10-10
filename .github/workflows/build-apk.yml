@@ -2,6 +2,9 @@ name: Build LANA V3.3 APK
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
