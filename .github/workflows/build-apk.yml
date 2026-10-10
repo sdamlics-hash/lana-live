@@ -20,6 +20,17 @@ jobs:
       - name: Unpack LANA V3.3
         run: unzip -o LANA_V3_3_ANDROID_APP_SOURCE.zip -d source
 
+      - name: Inspect existing Android app source
+        run: |
+          echo '=== AndroidManifest.xml ==='
+          cat source/app/src/main/AndroidManifest.xml
+          echo '=== MainActivity.kt ==='
+          cat source/app/src/main/java/ai/dreibus/lanalive/MainActivity.kt
+          echo '=== activity_main.xml ==='
+          cat source/app/src/main/res/layout/activity_main.xml
+          echo '=== app/build.gradle.kts ==='
+          cat source/app/build.gradle.kts
+
       - name: Configure Android build
         run: |
           echo "android.useAndroidX=true" > source/gradle.properties
