@@ -36,6 +36,23 @@ jobs:
       - name: Build APK
         run: cd source && gradle --no-daemon assembleDebug
 
+      - name: Inspect APK and record checksum
+        run: |
+          set -euo pipefail
+          APK=source/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          mkdir -p diagnostics
+          sha256sum "$APK" > diagnostics/apk-sha256.txt
+          ls -lh "$APK" > diagnostics/apk-file-size.txt
+          echo "APK built successfully; install on a device is not tested by this workflow."
+
+      - name: Upload APK diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: LANA-V3.3-APK-diagnostics
+          path: diagnostics/
+          if-no-files-found: error
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
