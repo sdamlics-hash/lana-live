@@ -74,6 +74,25 @@ jobs:
           p.write_text(s)
           PY
 
+      - name: Connect Android voice to LANA AI backend
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          src = Path("source/app/src/main/java/ai/dreibus/lanalive/LanaConnectedActivity.kt")
+          src.write_text(Path("android/LanaConnectedActivity.kt").read_text())
+          manifest = Path("source/app/src/main/AndroidManifest.xml")
+          m = manifest.read_text()
+          if 'android.permission.INTERNET' not in m:
+              m = m.replace('<application', '<uses-permission android:name="android.permission.INTERNET" />\\n    <application', 1)
+          if 'android.permission.RECORD_AUDIO' not in m:
+              m = m.replace('<application', '<uses-permission android:name="android.permission.RECORD_AUDIO" />\\n    <application', 1)
+          m, count = re.subn(r'android:name="(?:\\.MainActivity|ai\\.dreibus\\.lanalive\\.MainActivity)"', 'android:name=".LanaConnectedActivity"', m, count=1)
+          assert count == 1, "MainActivity launcher declaration not found; refusing to build a disconnected app"
+          manifest.write_text(m)
+          print("Connected voice activity installed; manifest and permissions updated")
+          PY
+
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
