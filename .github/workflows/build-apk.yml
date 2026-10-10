@@ -58,6 +58,12 @@ jobs:
           mkdir -p diagnostics
           sha256sum "$APK" > diagnostics/apk-sha256.txt
           ls -lh "$APK" > diagnostics/apk-file-size.txt
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner -type f | sort -V | tail -1)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name aapt -type f | sort -V | tail -1)"
+          "$APKSIGNER" verify --print-certs "$APK" > diagnostics/apk-signing-certificate.txt
+          "$AAPT" dump badging "$APK" | grep '^package:' > diagnostics/apk-package-version.txt
+          cat diagnostics/apk-signing-certificate.txt
+          cat diagnostics/apk-package-version.txt
           echo "APK built successfully; install on a device is not tested by this workflow."
 
       - name: Upload APK diagnostics
