@@ -87,7 +87,7 @@ jobs:
               m = m.replace('<application', '<uses-permission android:name="android.permission.INTERNET" />\\n    <application', 1)
           if 'android.permission.RECORD_AUDIO' not in m:
               m = m.replace('<application', '<uses-permission android:name="android.permission.RECORD_AUDIO" />\\n    <application', 1)
-          m, count = re.subn(r'android:name="(?:\\.MainActivity|ai\\.dreibus\\.lanalive\\.MainActivity)"', 'android:name=".LanaConnectedActivity"', m, count=1)
+          m, count = re.subn(r'android:name="[.]MainActivity"', 'android:name=".LanaConnectedActivity"', m, count=1)
           assert count == 1, "MainActivity launcher declaration not found; refusing to build a disconnected app"
           manifest.write_text(m)
           print("Connected voice activity installed; manifest and permissions updated")
