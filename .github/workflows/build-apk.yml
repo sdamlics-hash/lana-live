@@ -85,6 +85,22 @@ jobs:
         with:
           gradle-version: "8.9"
 
+      # A persistent signing certificate is required for Android in-place updates.
+      # Configure LANA_ANDROID_DEBUG_KEYSTORE_B64 in repository Actions secrets.
+      # Never commit the keystore or its passwords to the repository.
+      - name: Restore stable Android signing key
+        env:
+          LANA_KEYSTORE_B64: ${{ secrets.LANA_ANDROID_DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$LANA_KEYSTORE_B64" ]; then
+            mkdir -p "$HOME/.android"
+            printf '%s' "$LANA_KEYSTORE_B64" | base64 --decode > "$HOME/.android/debug.keystore"
+            chmod 600 "$HOME/.android/debug.keystore"
+            echo "Stable signing certificate restored from GitHub Actions secret."
+          else
+            echo "::warning::No stable signing certificate configured. APK cannot update a prior CI build in place."
+          fi
+
       - name: Build APK
         run: cd source && gradle --no-daemon assembleDebug
 
