@@ -8,6 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 from .engine import TaskQueue, UnsafeTaskError
 from .chat import ChatService, ChatError
+from .usage import UsageLimitError
 
 MAX_BODY_BYTES = 1024 * 1024
 TASK_ID_RE = re.compile(r"^/v1/tasks/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$")
@@ -110,6 +111,9 @@ def make_handler(queue, token, chat_service=None):
                     answer = chat_service.answer(data["conversation_id"], data["text"])
                 except ValueError:
                     self._json(400, {"error": "invalid conversation id or text"})
+                    return
+                except UsageLimitError as exc:
+                    self._json(429, {"error": str(exc)})
                     return
                 except ChatError as exc:
                     self._json(503, {"error": str(exc)})
