@@ -8,6 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 from .engine import TaskQueue, UnsafeTaskError
 from .chat import ChatService, ChatError
+from .usage import UsageLimitError
 
 MAX_BODY_BYTES = 1024 * 1024
 TASK_ID_RE = re.compile(r"^/v1/tasks/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$")
@@ -100,16 +101,21 @@ def make_handler(queue, token, chat_service=None):
                 self._json(400, {"error": "invalid JSON"})
                 return
             if path == "/v1/chat":
-                if not isinstance(data, dict) or set(data) != {"conversation_id", "text"}:
+                if (not isinstance(data, dict) or not {"conversation_id", "text"}.issubset(data)
+                    or not set(data).issubset({"conversation_id", "text", "context_notes", "memory_consent"})):
                     self._json(400, {"error": "invalid chat schema"})
                     return
                 if chat_service is None:
                     self._json(503, {"error": "LANA chat is not yet configured"})
                     return
                 try:
-                    answer = chat_service.answer(data["conversation_id"], data["text"])
+                    answer = chat_service.answer(data["conversation_id"], data["text"],
+                        context_notes=data.get("context_notes"), memory_consent=data.get("memory_consent", False))
                 except ValueError:
                     self._json(400, {"error": "invalid conversation id or text"})
+                    return
+                except UsageLimitError as exc:
+                    self._json(429, {"error": str(exc)})
                     return
                 except ChatError as exc:
                     self._json(503, {"error": str(exc)})

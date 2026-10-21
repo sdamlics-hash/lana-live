@@ -1,13 +1,16 @@
 package ai.dreibus.lanalive
 
 import org.json.JSONObject
+import org.json.JSONArray
 import java.io.IOException
 import java.net.URL
 import javax.net.ssl.HttpsURLConnection
 
 /** One authenticated voice-turn request. Never bypasses Android TLS verification. */
 internal object LanaChatClient {
-    fun ask(baseUrl: String, bearerToken: String, conversationId: String, question: String): String {
+    fun ask(baseUrl: String, bearerToken: String, conversationId: String, question: String, contextNotes: List<String> = emptyList()): String {
+        require(contextNotes.size <= 5 && contextNotes.sumOf { it.length } <= 6000 &&
+            contextNotes.all { it.isNotBlank() && it.length <= 3000 }) { "Выбрано слишком много заметок" }
         val base = URL(baseUrl.trim().trimEnd('/'))
         require(base.protocol.equals("https", ignoreCase = true) &&
             base.host.isNotBlank() && base.userInfo == null &&
@@ -27,6 +30,9 @@ internal object LanaChatClient {
         conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
         conn.setRequestProperty("Accept", "application/json")
         val json = JSONObject().put("conversation_id", conversationId).put("text", question)
+        if (contextNotes.isNotEmpty()) {
+            json.put("context_notes", JSONArray(contextNotes)).put("memory_consent", true)
+        }
         val body = json.toString().toByteArray(Charsets.UTF_8)
         conn.setFixedLengthStreamingMode(body.size)
         try {
