@@ -129,7 +129,7 @@ def make_preview(original_zip, destination):
     gradle=exact(gradle,
                  'versionName = "0.5.1-lana-voice-preview"',
                  'versionName = "0.5.2-lana-voice-reliable"',"version")
-    gradle+='\\n// Offline Kotlin tests do not use the OpenAI API.\\ndependencies { testImplementation("junit:junit:4.13.2") }\\n'
+    gradle+='\n// Offline Kotlin tests do not use the OpenAI API.\ndependencies { testImplementation("junit:junit:4.13.2") }\n'
     build.write_text(gradle,encoding="utf-8")
     return result
 
