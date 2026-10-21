@@ -6,6 +6,7 @@ on:
       - 'android_bridge/**'
       - 'LANA_V3_3_ANDROID_APP_SOURCE.zip'
       - '.github/workflows/lana-v35-emulator.yml'
+      - '.github/scripts/lana-emulator-smoke.sh'
   workflow_dispatch:
 
 jobs:
@@ -45,20 +46,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          script: |
-            set -eu
-            PACKAGE=ai.dreibus.lanalive.voicepreview
-            APK=/tmp/lana-v35-smoke/app/build/outputs/apk/debug/app-debug.apk
-            test -s "$APK"
-            adb install -r "$APK"
-            adb shell pm path "$PACKAGE" | grep -q 'base.apk'
-            adb shell am start -W -n "$PACKAGE/ai.dreibus.lanalive.MainActivity"
-            sleep 6
-            adb shell pidof "$PACKAGE" | grep -Eq '[0-9]+'
-            adb shell dumpsys activity activities | grep -F "$PACKAGE" >/dev/null
-            adb shell uiautomator dump /sdcard/lana-ui.xml
-            adb shell cat /sdcard/lana-ui.xml | grep -F 'ПРОВЕРИТЬ СВЯЗЬ С ЯДРОМ'
-            echo 'LANA V3.5: emulator install, launch and visible UI passed'
+          script: bash .github/scripts/lana-emulator-smoke.sh
       - name: Upload test APK only on green test
         uses: actions/upload-artifact@v4
         with:
