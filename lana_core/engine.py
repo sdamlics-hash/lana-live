@@ -4,6 +4,7 @@ No network clients, brokerage API, email sender, or external command executor
 is included. Expanding the allowed task registry requires code review.
 """
 import datetime as dt
+from contextlib import contextmanager
 import json
 import math
 import sqlite3
@@ -63,10 +64,18 @@ class TaskQueue:
         self.db_path = str(Path(db_path))
         self._init_db()
 
+    @contextmanager
     def _connect(self):
-        conn = sqlite3.connect(self.db_path, timeout=10)
-        conn.row_factory = sqlite3.Row
-        return conn
+        con = sqlite3.connect(self.db_path, timeout=10)
+        con.row_factory = sqlite3.Row
+        try:
+            yield con
+            con.commit()
+        except BaseException:
+            con.rollback()
+            raise
+        finally:
+            con.close()
 
     def _init_db(self):
         with self._connect() as con:
@@ -95,9 +104,11 @@ class TaskQueue:
         with self._connect() as con:
             con.execute('BEGIN IMMEDIATE')
             if idempotency_key is not None:
-                prior = con.execute('SELECT task_id FROM tasks WHERE idempotency_key=?',
+                prior = con.execute('SELECT task_id, kind, payload FROM tasks WHERE idempotency_key=?',
                                     (idempotency_key,)).fetchone()
                 if prior:
+                    if prior['kind'] != kind or prior['payload'] != data:
+                        raise ValueError('Idempotency key already used for a different task')
                     return prior['task_id']
             con.execute('''INSERT INTO tasks (task_id,idempotency_key,kind,payload,status,created_at,updated_at)
                            VALUES (?,?,?,?,?,?,?)''', (task_id,idempotency_key,kind,data,'pending',now,now))
