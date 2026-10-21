@@ -12,7 +12,7 @@ def snapshot():
 def find(text=None,desc=None):
     for _ in range(5):
         for node in snapshot().iter('node'):
-            if (text is not None and node.get('text')==text) or (desc is not None and node.get('content-desc')==desc):return node
+            if (text is not None and node.get('text','').casefold()==text.casefold()) or (desc is not None and node.get('content-desc')==desc):return node
         time.sleep(.4)
     raise AssertionError('Control missing: '+str(text or desc))
 def tap(text=None,desc=None):
