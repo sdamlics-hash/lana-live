@@ -12,6 +12,7 @@ import uuid
 import urllib.error
 import urllib.request
 from pathlib import Path
+from .memory import MemoryStore
 
 MAX_INPUT_CHARS = 2400
 MAX_HISTORY_MESSAGES = 16
@@ -74,6 +75,7 @@ class ChatService:
         self.api_key = api_key if api_key is not None else os.environ.get("OPENAI_API_KEY", "")
         self.model = model or os.environ.get("LANA_OPENAI_MODEL", DEFAULT_MODEL)
         self.transport = transport or openai_transport
+        self.memory = MemoryStore(self.db_path)
         self.lock = threading.RLock()
         with self._connect() as con:
             con.execute("CREATE TABLE IF NOT EXISTS chat_messages ("
@@ -117,6 +119,10 @@ class ChatService:
                     (conversation_id, MAX_HISTORY_MESSAGES),
                 ).fetchall()
             context = [{"role": role, "content": text} for role, text in reversed(history)]
+            # Admin-approved facts only; LLM never writes persistent memory.
+            background = self.memory.context()
+            if background:
+                context.insert(0, {"role": "developer", "content": background})
             context.append({"role": "user", "content": clean})
             answer = self.transport(self.api_key, self.model, context)
             if not isinstance(answer, str) or not answer.strip():
