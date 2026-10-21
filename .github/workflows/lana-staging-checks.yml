@@ -1,0 +1,31 @@
+name: LANA Staging Service Checks
+on:
+  pull_request:
+    paths:
+      - 'staging/**'
+      - '.github/workflows/lana-staging-checks.yml'
+      - 'lana_core/**'
+  workflow_dispatch:
+
+jobs:
+  validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check sandboxed services and secret redaction
+        run: python -m unittest discover -s staging/tests -v
+      - name: Recheck whole server core
+        run: python -m unittest discover -s tests -v
+      - name: Confirm not ready without live credentials
+        run: |
+          set +e
+          env -u LANA_API_TOKEN -u OPENAI_API_KEY python staging/preflight.py > /tmp/preflight_report
+          rc=$?
+          set -e
+          cat /tmp/preflight_report
+          test "$rc" -eq 2
+          grep -F 'Not ready: staging must remain offline' /tmp/preflight_report
