@@ -54,6 +54,15 @@ def make_handler(queue, token, chat_service=None):
                 return
             if not self._require_auth():
                 return
+            if path == "/v1/connections":
+                connections = chat_service.connection_status() if chat_service is not None else {
+                    "openai_api": {"state": "not_configured"},
+                    "chatgpt_history": {"state": "not_connected"},
+                    "lana_memory": {"state": "unavailable", "scope": "server"}}
+                self._json(200, {"schema": "lana.connections.v1", "connections": connections,
+                                 "chat_paths": ["/v1/chat", "/v1/lana/chat"],
+                                 "chat_schema": "conversation_id,text,optional:context_notes,memory_consent"})
+                return
             if path == "/v1/status":
                 self._json(200, {"ok": True, "mode": "offline-prototype",
                                  "allowed": ["heartbeat", "trade_report"]})
@@ -74,7 +83,7 @@ def make_handler(queue, token, chat_service=None):
             if not self._require_auth():
                 return
             path = self._path()
-            if path not in ("/v1/tasks", "/v1/chat"):
+            if path not in ("/v1/tasks", "/v1/chat", "/v1/lana/chat"):
                 self._json(404, {"error": "unknown endpoint"})
                 return
             if self.headers.get("Transfer-Encoding"):
@@ -100,7 +109,7 @@ def make_handler(queue, token, chat_service=None):
             except (UnicodeError, ValueError):
                 self._json(400, {"error": "invalid JSON"})
                 return
-            if path == "/v1/chat":
+            if path in ("/v1/chat", "/v1/lana/chat"):
                 if (not isinstance(data, dict) or not {"conversation_id", "text"}.issubset(data)
                     or not set(data).issubset({"conversation_id", "text", "context_notes", "memory_consent"})):
                     self._json(400, {"error": "invalid chat schema"})
