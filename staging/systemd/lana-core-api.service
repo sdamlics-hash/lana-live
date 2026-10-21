@@ -1,0 +1,36 @@
+[Unit]
+Description=LANA staging API (loopback only, NO external actions)
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=/etc/lana/lana.env
+
+[Service]
+Type=simple
+User=lana
+Group=lana
+WorkingDirectory=/opt/lana
+Environment=PYTHONPATH=/opt/lana
+EnvironmentFile=/etc/lana/lana.env
+ExecStart=/usr/bin/python3 -m lana_core.api --db /var/lib/lana/lana.sqlite3 --host 127.0.0.1 --port 8787
+Restart=always
+RestartSec=5
+UMask=0077
+StateDirectory=lana
+StateDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths=/var/lib/lana
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+TimeoutStopSec=15
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target
