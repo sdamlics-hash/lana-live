@@ -1,0 +1,37 @@
+name: LANA Bridge V3.4 Preview Build
+on:
+  pull_request:
+    paths:
+      - 'android_bridge/**'
+      - '.github/workflows/lana-bridge-preview.yml'
+  workflow_dispatch:
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check preview patcher
+        run: python -m unittest discover -s android_bridge/tests -v
+      - name: Create isolated Android V3.4 preview project
+        run: python android_bridge/patch_v34.py LANA_V3_3_ANDROID_APP_SOURCE.zip /tmp/lana-v34-preview
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build preview APK
+        run: cd /tmp/lana-v34-preview && gradle --no-daemon assembleDebug
+      - name: Upload preview APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: LANA-V3.4-BRIDGE-PREVIEW-APK
+          path: /tmp/lana-v34-preview/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
