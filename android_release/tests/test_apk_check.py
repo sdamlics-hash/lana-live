@@ -25,3 +25,7 @@ class SigningTests(unittest.TestCase):
     def test_metadata_requires_real_package_header(self):
         with self.assertRaises(ValueError):m.parse_package('not an APK manifest')
         self.assertEqual(m.parse_package("package: name='example.app' versionCode='2' versionName='v2' platformBuildVersionName='15'")['version_code'],2)
+
+    def test_observed_new_sdk_scheme_label_is_supported_without_source_stamp(self):
+        text='Verifies\nV2 Signer: certificate SHA-256 digest: '+'b'*64+'\nSource Stamp certificate SHA-256 digest: '+'c'*64+'\n'
+        self.assertEqual(m.parse_verified_signers(text),['b'*64])
