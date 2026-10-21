@@ -4,6 +4,7 @@ The module stores only a short rolling conversation locally, never an API key.
 It has no access to Gmail, the desktop, trading accounts, or shell commands.
 """
 import json
+from contextlib import contextmanager
 import os
 import sqlite3
 import threading
@@ -82,8 +83,17 @@ class ChatService:
             con.execute("CREATE INDEX IF NOT EXISTS chat_conv_idx "
                         "ON chat_messages(conversation_id,id)")
 
+    @contextmanager
     def _connect(self):
-        return sqlite3.connect(self.db_path, timeout=10)
+        con = sqlite3.connect(self.db_path, timeout=10)
+        try:
+            yield con
+            con.commit()
+        except BaseException:
+            con.rollback()
+            raise
+        finally:
+            con.close()
 
     def answer(self, conversation_id, message):
         if not isinstance(conversation_id, str):
