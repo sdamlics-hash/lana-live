@@ -1,0 +1,33 @@
+{
+  "baseline": {
+    "package": "ai.dreibus.lanalive.voicepreview",
+    "version_code": 5,
+    "version_name": "0.5.5-lana-connections",
+    "signers_sha256": [
+      "3a81530093647dbc95f851c641aaa4648b70ccd5fbdc286dda2c412db3b44db2"
+    ],
+    "apk_sha256": "bb06bb4e835295fe541b9dd35d1a1926eede6e8bfd84e422b04342c00659b865",
+    "signature_verified": true
+  },
+  "candidate": {
+    "package": "ai.dreibus.lanalive.voicepreview",
+    "version_code": 5,
+    "version_name": "0.6.0-lana-voice-turns",
+    "signers_sha256": [
+      "c77d96f0995f532e5824d2eb63576bc2f4d429150c98d339630497bd5a1059ed"
+    ],
+    "apk_sha256": "3a7a5c0c1e30c35b19bd2b4df5ec68241c2c091b6098a474dc2a1a5265487bf2",
+    "signature_verified": true
+  },
+  "same_package": true,
+  "same_signers": false,
+  "release_precheck_passed": false,
+  "block_reasons": [
+    "certificate_mismatch",
+    "release_version_code_not_increased"
+  ],
+  "scope": "Two CI preview APKs; not the actual installed Samsung app. No signing-lineage compatibility inferred.",
+  "device_update_test": "signature_mismatch_rejected_without_uninstall",
+  "samsung_install_ready": false,
+  "baseline_records_preserved": true
+}
