@@ -7,12 +7,13 @@ import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 from .engine import TaskQueue, UnsafeTaskError
+from .chat import ChatService, ChatError
 
 MAX_BODY_BYTES = 1024 * 1024
 TASK_ID_RE = re.compile(r"^/v1/tasks/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$")
 KEY_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
 
-def make_handler(queue, token):
+def make_handler(queue, token, chat_service=None):
     if not isinstance(token, str) or len(token) < 32:
         raise ValueError("LANA_API_TOKEN must be a random secret of at least 32 characters")
 
@@ -71,7 +72,8 @@ def make_handler(queue, token):
         def do_POST(self):
             if not self._require_auth():
                 return
-            if self._path() != "/v1/tasks":
+            path = self._path()
+            if path not in ("/v1/tasks", "/v1/chat"):
                 self._json(404, {"error": "unknown endpoint"})
                 return
             if self.headers.get("Transfer-Encoding"):
@@ -96,6 +98,23 @@ def make_handler(queue, token):
                                   parse_constant=lambda _: (_ for _ in ()).throw(ValueError("non-finite JSON")))
             except (UnicodeError, ValueError):
                 self._json(400, {"error": "invalid JSON"})
+                return
+            if path == "/v1/chat":
+                if not isinstance(data, dict) or set(data) != {"conversation_id", "text"}:
+                    self._json(400, {"error": "invalid chat schema"})
+                    return
+                if chat_service is None:
+                    self._json(503, {"error": "LANA chat is not yet configured"})
+                    return
+                try:
+                    answer = chat_service.answer(data["conversation_id"], data["text"])
+                except ValueError:
+                    self._json(400, {"error": "invalid conversation id or text"})
+                    return
+                except ChatError as exc:
+                    self._json(503, {"error": str(exc)})
+                    return
+                self._json(200, {"answer": answer, "conversation_id": data["conversation_id"]})
                 return
             if (not isinstance(data, dict) or
                 not {"kind", "payload"}.issubset(data) or
@@ -122,10 +141,10 @@ def make_handler(queue, token):
 class LoopbackServer(ThreadingHTTPServer):
     daemon_threads = True
 
-def create_server(queue, token, host="127.0.0.1", port=8787):
+def create_server(queue, token, host="127.0.0.1", port=8787, chat_service=None):
     if host != "127.0.0.1":
         raise ValueError("Only IPv4 loopback is allowed; use a reviewed TLS/VPN proxy")
-    return LoopbackServer((host, port), make_handler(queue, token))
+    return LoopbackServer((host, port), make_handler(queue, token, chat_service))
 
 def main():
     parser = argparse.ArgumentParser(description="LANA offline-only local task API")
@@ -134,7 +153,7 @@ def main():
     parser.add_argument("--port", type=int, default=8787)
     args = parser.parse_args()
     server = create_server(TaskQueue(args.db), os.environ.get("LANA_API_TOKEN", ""),
-                           args.host, args.port)
+                           args.host, args.port, ChatService(args.db))
     try:
         print(f"LANA core API on {args.host}:{server.server_address[1]} (loopback only)")
         server.serve_forever()

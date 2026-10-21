@@ -1,0 +1,42 @@
+name: LANA V3.5 Voice + OpenAI Preview
+on:
+  pull_request:
+    paths:
+      - 'android_voice/**'
+      - 'android_bridge/**'
+      - 'lana_core/chat.py'
+      - 'lana_core/api.py'
+      - 'tests/test_chat.py'
+      - '.github/workflows/lana-voice-v35.yml'
+  workflow_dispatch:
+
+jobs:
+  tests-and-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python core and simulated OpenAI tests
+        run: python -m unittest discover -s tests -v
+      - name: Android patch tests
+        run: |
+          python -m unittest discover -s android_bridge/tests -v
+          python -m unittest discover -s android_voice/tests -v
+      - name: Create isolated Android V3.5
+        run: python android_voice/patch_v35.py LANA_V3_3_ANDROID_APP_SOURCE.zip /tmp/lana-v35-preview
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Compile Android V3.5 debug APK
+        run: cd /tmp/lana-v35-preview && gradle --no-daemon assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LANA-V3.5-VOICE-PREVIEW-APK
+          path: /tmp/lana-v35-preview/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

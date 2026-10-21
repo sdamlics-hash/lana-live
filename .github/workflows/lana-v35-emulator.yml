@@ -1,0 +1,55 @@
+name: LANA V3.5 Android Emulator Smoke
+on:
+  pull_request:
+    paths:
+      - 'android_voice/**'
+      - 'android_bridge/**'
+      - 'LANA_V3_3_ANDROID_APP_SOURCE.zip'
+      - '.github/workflows/lana-v35-emulator.yml'
+      - '.github/scripts/lana-emulator-smoke.sh'
+  workflow_dispatch:
+
+jobs:
+  android-emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate test app source generation
+        run: |
+          python -m unittest discover -s android_bridge/tests -v
+          python -m unittest discover -s android_voice/tests -v
+          python android_voice/patch_v35.py LANA_V3_3_ANDROID_APP_SOURCE.zip /tmp/lana-v35-smoke
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build installable test APK
+        run: cd /tmp/lana-v35-smoke && gradle --no-daemon assembleDebug
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install and launch on isolated Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: bash .github/scripts/lana-emulator-smoke.sh
+      - name: Upload test APK only on green test
+        uses: actions/upload-artifact@v4
+        with:
+          name: LANA-V3.5-EMULATOR-VERIFIED-APK
+          path: /tmp/lana-v35-smoke/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
