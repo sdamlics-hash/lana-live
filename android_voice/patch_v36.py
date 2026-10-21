@@ -115,6 +115,37 @@ def make_preview(original_zip, destination):
        '''override fun onReadyForSpeech(params: Bundle?) {
                     status.text = if (conversationActive) "Слушаю" else "Слушаю: скажи «Лана, ты тут?»"
                 }''',"listening status")
+    # Invalidate every asynchronous result from a stopped/replaced session.
+    main=exact(main, '    private var speaking = false',
+        '    private val voiceSession = LanaVoiceSession()\n    private var speaking = false', 'session guard')
+    main=exact(main, '        voiceEnabled = true',
+        '        voiceEnabled = true\n        val recognitionTicket = voiceSession.start()', 'start generation')
+    main=main.replace('                voiceEnabled = false',
+        '                voiceSession.stop()\n                voiceEnabled = false')
+    main=exact(main, '        voiceEnabled = false\n        handler.removeCallbacksAndMessages(null)',
+        '        voiceSession.stop()\n        voiceEnabled = false\n        handler.removeCallbacksAndMessages(null)', 'destroy generation')
+    for signature in ['override fun onResults(results: Bundle?) {',
+                      'override fun onError(error: Int) {',
+                      'override fun onReadyForSpeech(params: Bundle?) {']:
+        main=exact(main, signature,
+            signature+'\n                    if (!voiceSession.accepts(recognitionTicket)) return', 'recognition callback')
+    main=exact(main, '        Thread {\n            val reply = try {',
+        '        val requestTicket = voiceSession.current()\n        Thread {\n            val reply = try {', 'request generation')
+    main=exact(main, '                if (voiceEnabled && !isFinishing && !isDestroyed) {',
+        '                if (!voiceSession.accepts(requestTicket)) return@runOnUiThread\n                if (voiceEnabled && !isFinishing && !isDestroyed) {', 'discard old response')
+    main=exact(main, '"lana_voice_reply")',
+        '"lana_voice_" + voiceSession.current())', 'tts generation')
+    # A TTS completion from QUEUE_FLUSH must not restart a new session's mic.
+    main=exact(main, 'handler.post { speaking = true; status.text = "Отвечаю" }',
+        'handler.post {\n                            if (utteranceId != "lana_voice_" + voiceSession.current() || !voiceEnabled) return@post\n                            speaking = true; status.text = "Отвечаю"\n                        }', 'tts start guard')
+    main=main.replace('                        handler.post {\n                            speaking = false',
+        '                        handler.post {\n                            if (utteranceId != "lana_voice_" + voiceSession.current() || !voiceEnabled) return@post\n                            speaking = false')
+    # Scheduled microphone restarts also belong to the session that scheduled them.
+    main=main.replace('                                handler.postDelayed({',
+        '                                val retryTicket = voiceSession.current()\n                                handler.postDelayed({\n                                    if (!voiceSession.accepts(retryTicket)) return@postDelayed')
+    main=exact(main, '        handler.postDelayed({ if (voiceEnabled && !speaking) listenOnce() }, delay)',
+        '        val retryTicket = voiceSession.current()\n        handler.postDelayed({ if (voiceSession.accepts(retryTicket) && voiceEnabled && !speaking) listenOnce() }, delay)', 'retry generation')
+    shutil.copyfile(ROOT / "android_voice/src/LanaVoiceSession.kt",src / "LanaVoiceSession.kt")
     main_path.write_text(main,encoding="utf-8")
     shutil.copyfile(ROOT / "android_voice/src/LanaVoiceCommands.kt",src / "LanaVoiceCommands.kt")
 
