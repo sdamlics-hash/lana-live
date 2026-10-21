@@ -41,4 +41,24 @@ class LanaVoiceCommandsTest {
         check("Лана, всё!", true, LanaVoiceCommands.Action.STOP)
         check("   Лана, ХВАТИТ! ", true, LanaVoiceCommands.Action.STOP)
     }
+    @Test fun stoppedSessionRejectsDelayedReplyAfterRestart() {
+        val sessions = LanaVoiceSession()
+        val old = sessions.start()
+        assertEquals(true, sessions.accepts(old))
+        sessions.stop()
+        assertEquals(false, sessions.accepts(old))
+        val fresh = sessions.start()
+        assertEquals(false, sessions.accepts(old))
+        assertEquals(true, sessions.accepts(fresh))
+    }
+
+    @Test fun replacingRecognizerRejectsItsOldCallbacks() {
+        val sessions = LanaVoiceSession()
+        val first = sessions.start()
+        val next = sessions.start()
+        assertEquals(false, sessions.accepts(first))
+        assertEquals(true, sessions.accepts(next))
+        sessions.stop()
+        assertEquals(false, sessions.accepts(next))
+    }
 }
