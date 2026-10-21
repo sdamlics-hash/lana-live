@@ -2,7 +2,9 @@ name: LANA V3.5 Voice + OpenAI Preview
 on:
   pull_request:
     paths:
-      - 'android_voice/**'
+      - 'android_voice/patch_v35.py'
+      - 'android_voice/src/LanaChatClient.kt'
+      - 'android_voice/tests/test_voice_preview.py'
       - 'android_bridge/**'
       - 'lana_core/chat.py'
       - 'lana_core/api.py'
