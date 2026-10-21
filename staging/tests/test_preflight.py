@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("lana_preflight", ROOT / "staging/preflight.py")
 preflight = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = preflight
