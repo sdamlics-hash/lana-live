@@ -38,7 +38,7 @@ class LanaVoiceCommandsTest {
 
     @Test fun normalizationIsStable() {
         check("   ЛАНА!!!    Ты   ТУТ??  ", false, LanaVoiceCommands.Action.WAKE)
-        check("Лана, всё!", true, LanaVoiceCommands.Action.ASK)
+        check("Лана, всё!", true, LanaVoiceCommands.Action.STOP)
         check("   Лана, ХВАТИТ! ", true, LanaVoiceCommands.Action.STOP)
     }
 }
