@@ -22,10 +22,18 @@ def make_preview(archive,destination):
     if s.count(anchor)!=1:raise ValueError('Missing diagnostics callback')
     s=s.replace('"Связь не установлена. Проверьте HTTPS-адрес и доступ к серверу."',
         '"Связь не установлена.\\n" + LanaConnectionStatus.render("unknown", "unknown", "unknown")')
+    s=s.replace('    private var speaking = false', '    private var connectionCheckId = 0\n    private var speaking = false')
+    s=s.replace('            val address = findViewById<EditText>(R.id.coreServerUrl).text.toString()',
+        '            val checkId = ++connectionCheckId\n            val address = findViewById<EditText>(R.id.coreServerUrl).text.toString()')
+    s=s.replace('            status.text = "Проверяю связь с ядром Ланы…"',
+        '            status.text = "Проверяю связь с ядром Ланы…"\n            findViewById<TextView>(R.id.connectionStatusText).text = status.text.toString() + "\\n" + LanaConnectionStatus.render("unknown", "not_connected", "unknown")')
     s=s.replace(anchor,'''runOnUiThread {
                     if (!isFinishing && !isDestroyed) {
-                        status.text = answer
-                        findViewById<TextView>(R.id.connectionStatusText).text = answer
+                        if (checkId != connectionCheckId || address != findViewById<EditText>(R.id.coreServerUrl).text.toString()) return@runOnUiThread
+                        val checkedAt = java.text.DateFormat.getTimeInstance().format(java.util.Date())
+                        val report = "Проверено в " + checkedAt + ". Для актуального статуса повтори проверку.\\n" + answer
+                        status.text = report
+                        findViewById<TextView>(R.id.connectionStatusText).text = report
                     }
                 }''')
     activity.write_text(s)
