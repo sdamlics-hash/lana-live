@@ -3,6 +3,9 @@ on:
   pull_request:
     paths:
       - 'android_workspace/**'
+      - 'android_voice/**'
+      - 'android_bridge/**'
+      - 'LANA_V3_3_ANDROID_APP_SOURCE.zip'
       - '.github/workflows/lana-v37-workspace.yml'
       - '.github/scripts/lana-v37-workspace-smoke.py'
   workflow_dispatch:
