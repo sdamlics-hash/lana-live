@@ -61,3 +61,27 @@ jobs:
           name: LANA-APK-UPDATE-REPORT
           path: /tmp/lana-release/update-report.json
           if-no-files-found: warn
+  prepare-next-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Generate increased version with explicit release-signing requirement
+        run: |
+          python -m unittest discover -s android_release/tests -v
+          python android_release/patch_v41.py LANA_V3_3_ANDROID_APP_SOURCE.zip /tmp/lana-v41
+      - name: Verify native tests, debug compilation and refusal of unconfigured release
+        run: |
+          cd /tmp/lana-v41
+          gradle --no-daemon testDebugUnitTest assembleDebug
+          python "$GITHUB_WORKSPACE/android_release/verify_release_refusal.py" /tmp/lana-v41
