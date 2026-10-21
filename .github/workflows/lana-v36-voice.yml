@@ -45,15 +45,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          script: |
-            set -eu
-            adb install -r /tmp/lana-v36/app/build/outputs/apk/debug/app-debug.apk
-            adb shell am start -W -n ai.dreibus.lanalive.voicepreview/ai.dreibus.lanalive.MainActivity
-            sleep 7
-            adb shell pidof ai.dreibus.lanalive.voicepreview | grep -Eq '[0-9]+'
-            adb shell uiautomator dump /sdcard/lana-v36.xml
-            adb shell cat /sdcard/lana-v36.xml | grep -F 'СЛУШАТЬ' >/dev/null
-            echo 'V3.6 virtual Android launch and UI: PASS'
+          script: bash .github/scripts/lana-v36-emulator-smoke.sh
       - uses: actions/upload-artifact@v4
         with:
           name: LANA-V3.6-VOICE-RELIABILITY-APK
