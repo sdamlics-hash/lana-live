@@ -17,8 +17,8 @@ def sdk_tool(name):
     if not choices:raise RuntimeError('Android SDK tool unavailable: '+name)
     return str(choices[0])
 def parse_verified_signers(output):
-    values=re.findall(r'^Signer #\d+ certificate SHA-256 digest: ([0-9a-fA-F]{64})\s*$',output,re.M)
-    if not values:raise ValueError('Verified signer certificate fingerprint not found; public SDK output: '+output[:6000])
+    values=re.findall(r'^(?:Signer #\d+|V[1-4](?:\.\d+)? Signer):? certificate SHA-256 digest: ([0-9a-fA-F]{64})\s*$',output,re.M)
+    if not values:raise ValueError('Verified signer certificate fingerprint not found')
     return sorted(set(value.lower() for value in values))
 def parse_package(output):
     match=re.search(r"^package: name='([^']+)' versionCode='(\d+)' versionName='([^']*)'",output,re.M)
