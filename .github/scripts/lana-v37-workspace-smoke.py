@@ -18,6 +18,10 @@ def find(text=None,desc=None):
         except (subprocess.CalledProcessError, ET.ParseError):
             pass  # Android UI tree may not exist immediately after launch.
         time.sleep(1)
+    try:
+        print(ET.tostring(snapshot(),encoding='unicode'))
+    except Exception:
+        pass
     print(adb('logcat','-d','-s','AndroidRuntime:E'))
     raise AssertionError('Control missing: '+str(text or desc))
 def tap(text=None,desc=None):
