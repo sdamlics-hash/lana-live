@@ -24,7 +24,7 @@ internal object LanaVoiceCommands {
         // Stopping has priority over any wake word, even "Лана, стоп".
         val stopPhrases = listOf(
             "стоп разговор", "останови разговор",
-            "лана стоп", "лана хватит", "лана замолчи",
+            "лана стоп", "лана хватит", "лана замолчи", "лана все", "лана остановись",
             "хватит лана", "все лана", "пока лана"
         )
         if (stopPhrases.any { normalized == it ||
