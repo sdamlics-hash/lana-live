@@ -165,7 +165,13 @@ internal class LanaWorkspace(private val activity: Activity) {
             }.apply { contentDescription = "workspace_tab_$index"; textSize = 12f; minWidth = 0; setPadding(4, 8, 4, 8) }
             tabs.add(tab); navigation.addView(tab, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         }
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(shell) { view, insets ->
+            val bars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            insets
+        }
         host.addView(shell)
+        androidx.core.view.ViewCompat.requestApplyInsets(shell)
         for (i in panels.indices) panels[i].visibility = if (i == 0) View.VISIBLE else View.GONE
         tabs[0].isSelected = true
     }
