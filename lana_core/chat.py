@@ -8,6 +8,7 @@ from contextlib import contextmanager
 import os
 import sqlite3
 import threading
+import time
 import uuid
 import urllib.error
 import urllib.request
@@ -100,6 +101,10 @@ class ChatService:
             daily_limit=int(os.environ.get('LANA_CHAT_DAILY_MAX', '100')),
             conversation_hourly_limit=int(os.environ.get('LANA_CHAT_HOURLY_MAX', '30')),
         )
+        self._provider_lock = threading.Lock()
+        self._provider_state = "unverified"
+        self._provider_checked = None
+        self._real_transport = transport is None or transport is openai_transport
         self.lock = threading.RLock()
         with self._connect() as con:
             con.execute("CREATE TABLE IF NOT EXISTS chat_messages ("
@@ -120,6 +125,26 @@ class ChatService:
             raise
         finally:
             con.close()
+
+    def connection_status(self):
+        # No provider request, history contents, API keys or memory text in diagnostics.
+        with self._provider_lock:
+            state = self._provider_state
+            if not self.api_key:
+                state = "not_configured"
+            elif not self._real_transport:
+                state = "test_mode"
+            elif self._provider_checked is None or time.monotonic() - self._provider_checked > 300:
+                state = "unverified"
+        try:
+            with self.memory._connect() as con:
+                con.execute("SELECT COUNT(*) FROM approved_memory").fetchone()
+            memory_state = "readable"
+        except sqlite3.Error:
+            memory_state = "unavailable"
+        return {"openai_api": {"state": state},
+                "chatgpt_history": {"state": "not_connected"},
+                "lana_memory": {"state": memory_state, "scope": "server"}}
 
     def answer(self, conversation_id, message, *, context_notes=None, memory_consent=False):
         chosen = approved_context(context_notes, memory_consent)
@@ -157,9 +182,18 @@ class ChatService:
             # Fail closed before invoking a potentially billable network API.
             # Count attempts including timeouts to avoid endless voice retry loops.
             self.usage.claim(conversation_id)
-            answer = self.transport(self.api_key, self.model, context)
-            if not isinstance(answer, str) or not answer.strip():
-                raise ChatError("ИИ вернул пустой ответ")
+            try:
+                answer = self.transport(self.api_key, self.model, context)
+                if not isinstance(answer, str) or not answer.strip():
+                    raise ChatError("ИИ вернул пустой ответ")
+            except Exception:
+                with self._provider_lock:
+                    self._provider_state = "unavailable"
+                    self._provider_checked = time.monotonic()
+                raise
+            with self._provider_lock:
+                self._provider_state = "verified_recently"
+                self._provider_checked = time.monotonic()
             answer = answer.strip()[:MAX_ANSWER_CHARS]
             with self._connect() as con:
                 con.execute(
