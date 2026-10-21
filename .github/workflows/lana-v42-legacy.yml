@@ -1,4 +1,4 @@
-name: LANA V4.2 Existing Server Contract
+name: LANA Voice Repair
 on:
   pull_request:
     paths:
@@ -36,7 +36,8 @@ jobs:
           python -m unittest discover -s android_connections/tests -v
           python -m unittest discover -s android_dialogue/tests -v
           python -m unittest discover -s android_legacy/tests -v
-          python android_legacy/patch_v42.py LANA_V3_3_ANDROID_APP_SOURCE.zip /tmp/lana-v42
+          python -m unittest discover -s android_voice/tests -p "test_repair43.py" -v
+          python android_voice/repair_v43.py LANA_V3_3_ANDROID_APP_SOURCE.zip /tmp/lana-v42
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -66,6 +67,6 @@ jobs:
           script: python .github/scripts/lana-v42-legacy-smoke.py
       - uses: actions/upload-artifact@v4
         with:
-          name: LANA-V4.2-LEGACY-CANDIDATE-APK
+          name: LANA-VOICE-REPAIR-APK
           path: /tmp/lana-v42/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
