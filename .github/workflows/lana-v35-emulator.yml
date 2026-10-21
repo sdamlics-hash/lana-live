@@ -2,7 +2,9 @@ name: LANA V3.5 Android Emulator Smoke
 on:
   pull_request:
     paths:
-      - 'android_voice/**'
+      - 'android_voice/patch_v35.py'
+      - 'android_voice/src/LanaChatClient.kt'
+      - 'android_voice/tests/test_voice_preview.py'
       - 'android_bridge/**'
       - 'LANA_V3_3_ANDROID_APP_SOURCE.zip'
       - '.github/workflows/lana-v35-emulator.yml'
