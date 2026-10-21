@@ -6,7 +6,7 @@ import java.net.URL
 internal object LanaConnectionStatus {
     fun render(api: String, history: String, memory: String): String {
         val apiLabel = when (api) {
-            "verified_recently" -> "подключён: успешный ответ за последние 5 минут"
+            "verified_recently" -> "подключён на момент проверки: успешный ответ за последние 5 минут"
             "not_configured" -> "не настроен"
             "unavailable" -> "последний запрос завершился ошибкой"
             "test_mode" -> "тестовый режим, связь с OpenAI не подтверждена"
