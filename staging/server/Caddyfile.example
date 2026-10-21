@@ -1,0 +1,34 @@
+# Replace this hostname with a DNS name controlled by the user.
+# Validate with Caddy before applying. Never replace another app's server block.
+lana-staging.example.invalid {
+    @status {
+        method GET
+        path /v1/status
+    }
+    handle @status {
+        reverse_proxy 127.0.0.1:18787
+    }
+    @dialogue {
+        method POST
+        path /v1/chat
+    }
+    handle @dialogue {
+        request_body {
+            max_size 16KB
+        }
+        reverse_proxy 127.0.0.1:18787 {
+            transport http {
+                response_header_timeout 35s
+            }
+        }
+    }
+    handle {
+        respond 404
+    }
+    header {
+        Cache-Control "no-store"
+        X-Content-Type-Options "nosniff"
+        -Server
+    }
+    # No access log: do not record user requests/headers in this block.
+}

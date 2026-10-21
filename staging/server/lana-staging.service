@@ -1,0 +1,41 @@
+[Unit]
+Description=LANA isolated staging dialogue API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lana-staging
+Group=lana-staging
+WorkingDirectory=/opt/lana-staging
+EnvironmentFile=/etc/lana-staging/secrets.env
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=LANA_CHAT_DAILY_MAX=20
+Environment=LANA_CHAT_HOURLY_MAX=10
+Environment=LANA_OPENAI_MODEL=gpt-4.1-mini
+ExecStart=/usr/bin/python3 -m lana_core.api --host 127.0.0.1 --port 18787 --db /var/lib/lana-staging/lana.sqlite3
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+StateDirectory=lana-staging
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
