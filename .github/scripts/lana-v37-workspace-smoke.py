@@ -12,7 +12,18 @@ def snapshot():
 def find(text=None,desc=None):
     for _ in range(8):
         try:
-            nodes = snapshot().iter('node')
+            root = snapshot()
+            launcher_anr = any(node.get('resource-id') == 'android:id/alertTitle' and
+                               node.get('text') == "Pixel Launcher isn't responding"
+                               for node in root.iter('node'))
+            if launcher_anr:
+                close = next(node for node in root.iter('node') if node.get('resource-id') == 'android:id/aerr_close')
+                bounds = list(map(int,re.findall(r'\d+',close.get('bounds'))))
+                adb('shell','input','tap',str((bounds[0]+bounds[2])//2),str((bounds[1]+bounds[3])//2))
+                adb('shell','am','start','-W','-n',PACKAGE+'/ai.dreibus.lanalive.MainActivity')
+                time.sleep(1)
+                continue
+            nodes = root.iter('node')
             for node in nodes:
                 if (text is not None and node.get('text','').casefold()==text.casefold()) or (desc is not None and node.get('content-desc')==desc):return node
         except (subprocess.CalledProcessError, ET.ParseError):
