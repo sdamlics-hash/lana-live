@@ -27,7 +27,7 @@ class V36PreviewTests(unittest.TestCase):
         self.assertIn('conversationActive = false',main)
         self.assertIn("handler.removeCallbacksAndMessages(null)",main)
         self.assertIn('status.text = if (conversationActive) "Слушаю"',main)
-        self.assertIn("handler.post { speaking = false;",main)
+        self.assertIn("handler.post {\n                            speaking = false",main)
         self.assertNotIn("words.equals(\"Лана, хватит\", ignoreCase = true)",main)
         app=target/"app"
         self.assertTrue((app/"src/main/java/ai/dreibus/lanalive/LanaVoiceCommands.kt").is_file())
