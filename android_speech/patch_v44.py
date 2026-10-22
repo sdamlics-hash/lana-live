@@ -14,6 +14,16 @@ def make_preview(archive,destination):
     base=importlib.util.module_from_spec(spec);spec.loader.exec_module(base)
     out=base.make_preview(archive,destination)
     src=out/'app/src/main/java/ai/dreibus/lanalive';p=src/'MainActivity.kt';s=p.read_text()
+    # The token field is cleared after use; another status check must reuse
+    # the in-memory session token rather than silently erase it.
+    s=one(s,'    private var voiceSessionToken: String? = null',
+        '    private var voiceSessionToken: String? = null\n    private var voiceSessionTokenAddress: String? = null')
+    s=one(s,'val secret = secretField.text.toString()',
+        'val secret = secretField.text.toString().trim().ifBlank {\n                if (voiceSessionTokenAddress == address.trim()) voiceSessionToken.orEmpty() else ""\n            }')
+    s=one(s,'            voiceSessionToken = secret',
+        '            voiceSessionToken = secret\n            voiceSessionTokenAddress = address.trim()')
+    s=one(s,'if (secret.isNullOrBlank() || address.isBlank()) {',
+        'if (secret.isNullOrBlank() || address.isBlank() || voiceSessionTokenAddress != address) {')
     s=one(s,'    private var ttsReady = false','''    private var ttsReady = false
     private var cloudPlayer: android.media.MediaPlayer? = null
     private var cloudClip: java.io.File? = null
@@ -53,9 +63,10 @@ def make_preview(archive,destination):
         appendHistory("Лана: " + answer)
         val address = findViewById<EditText>(R.id.coreServerUrl).text.toString().trim()
         val token = voiceSessionToken.orEmpty()
-        if (address.isBlank() || token.isBlank()) {
+        if (address.isBlank() || token.isBlank() || voiceSessionTokenAddress != address) {
             voiceDiagnostic("Для Shimmer нужны адрес ядра и ключ текущего сеанса")
             status.text = "Ответ есть; голос не подключён"
+            retryVoice()
             return
         }
         speaking = true
@@ -84,6 +95,7 @@ def make_preview(archive,destination):
                     speaking = false
                     status.text = "Ответ сохранён; озвучка не получена"
                     voiceDiagnostic(problem ?: "Нет связи с голосом")
+                    retryVoice()
                     return@runOnUiThread
                 }
                 try {
@@ -114,6 +126,7 @@ def make_preview(archive,destination):
                             stopCloudVoice()
                             status.text = "Не удалось воспроизвести ответ"
                             voiceDiagnostic("Ошибка воспроизведения Shimmer")
+                            retryVoice()
                         }
                         true
                     }
@@ -123,6 +136,7 @@ def make_preview(archive,destination):
                     stopCloudVoice()
                     status.text = "Не удалось воспроизвести ответ"
                     voiceDiagnostic("Ошибка подготовки записи Shimmer")
+                    retryVoice()
                 }
             }
         }.start()
