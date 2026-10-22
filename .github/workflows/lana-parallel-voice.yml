@@ -37,7 +37,7 @@ jobs:
           if len(matches) != 1:
               raise SystemExit('Expected exactly one applicationId')
           original = matches[0].group(2)
-          candidate = 'ai.dreibus.lanalive.voicepreview'
+          candidate = 'ai.dreibus.lanalive.voicecheck20261022'
           if original == candidate:
               raise SystemExit('Candidate must use a distinct application ID')
           p.write_text(re.sub(pattern, lambda m: m.group(1)+candidate+m.group(3), source))
@@ -68,7 +68,7 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           data = Path('/tmp/lana-badging.txt').read_text()
-          assert "package: name='ai.dreibus.lanalive.voicepreview'" in data
+          assert "package: name='ai.dreibus.lanalive.voicecheck20261022'" in data
           assert "application-label:'Лана — проверка голоса'" in data
           print('Separate package and visible label verified')
           PY
