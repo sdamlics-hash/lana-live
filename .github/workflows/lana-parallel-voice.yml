@@ -43,6 +43,7 @@ jobs:
           p.write_text(re.sub(pattern, lambda m: m.group(1)+candidate+m.group(3), source))
           manifest = root/'app/src/main/AndroidManifest.xml'
           a = '{http://schemas.android.com/apk/res/android}'
+          ET.register_namespace('android', 'http://schemas.android.com/apk/res/android')
           tree = ET.parse(manifest)
           app = tree.getroot().find('application')
           if app is None:
