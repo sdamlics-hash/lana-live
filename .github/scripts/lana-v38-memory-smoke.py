@@ -36,8 +36,17 @@ def find(text=None,desc=None):
     print(adb('logcat','-d','-s','AndroidRuntime:E'))
     raise AssertionError('Control missing: '+str(text or desc))
 def tap(text=None,desc=None):
-    node=find(text,desc);nums=list(map(int,re.findall(r'\d+',node.get('bounds'))))
-    adb('shell','input','tap',str((nums[0]+nums[2])//2),str((nums[1]+nums[3])//2))
+    navigation = desc is not None and desc.startswith('workspace_tab_')
+    for attempt in range(3 if navigation else 1):
+        node=find(text,desc);nums=list(map(int,re.findall(r'\d+',node.get('bounds'))))
+        adb('shell','input','tap',str((nums[0]+nums[2])//2),str((nums[1]+nums[3])//2))
+        if not navigation:return
+        # ADB accepting input is not evidence that Android changed the tab.
+        time.sleep(0.4)
+        root = snapshot()
+        if any(n.get('package') == PACKAGE and n.get('content-desc') == desc
+               and n.get('selected') == 'true' for n in root.iter('node')):return
+    raise AssertionError('Tab did not activate after 3 taps: '+desc)
 def add(tab,field,value,button):
     tap(desc='workspace_tab_'+str(tab));tap(desc=field)
     adb('shell','input','text',value);adb('shell','input','keyevent','4');tap(text=button);find(text=value)
