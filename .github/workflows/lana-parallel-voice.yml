@@ -1,0 +1,106 @@
+name: LANA Parallel Voice Candidate
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/lana-parallel-voice.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Generate isolated voice candidate
+        run: |
+          python android_speech/patch_v44.py LANA_V3_3_ANDROID_APP_SOURCE.zip /tmp/lana-parallel
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          import xml.etree.ElementTree as ET
+          root = Path('/tmp/lana-parallel')
+          p = root/'app/build.gradle.kts'
+          source = p.read_text()
+          pattern = r'(applicationId\s*=\s*")([^"]+)(")'
+          matches = list(re.finditer(pattern, source))
+          if len(matches) != 1:
+              raise SystemExit('Expected exactly one applicationId')
+          original = matches[0].group(2)
+          candidate = 'ai.dreibus.lanalive.voicecheck20261022'
+          if original == candidate:
+              raise SystemExit('Candidate must use a distinct application ID')
+          p.write_text(re.sub(pattern, lambda m: m.group(1)+candidate+m.group(3), source))
+          manifest = root/'app/src/main/AndroidManifest.xml'
+          a = '{http://schemas.android.com/apk/res/android}'
+          ET.register_namespace('android', 'http://schemas.android.com/apk/res/android')
+          tree = ET.parse(manifest)
+          app = tree.getroot().find('application')
+          if app is None:
+              raise SystemExit('Application manifest missing')
+          app.set(a+'label', 'Лана — проверка голоса')
+          for node in tree.iter():
+              authority = node.get(a+'authorities')
+              if authority:
+                  if '${applicationId}' not in authority and original not in authority:
+                      raise SystemExit('Unscoped provider authority requires review')
+                  node.set(a+'authorities', authority.replace(original, candidate))
+          tree.write(manifest, encoding='unicode')
+          print('Separate install identity:', candidate)
+          PY
+      - name: Kotlin tests and APK
+        working-directory: /tmp/lana-parallel
+        run: gradle --no-daemon testDebugUnitTest assembleDebug
+      - name: Download installed preview baseline
+        uses: actions/download-artifact@v4
+        with:
+          name: LANA-PARALLEL-VOICE-APK
+          run-id: 39822247039
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: /tmp/lana-installed-baseline
+      - name: Verify install identity and signature
+        run: |
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          APK=/tmp/lana-parallel/app/build/outputs/apk/debug/app-debug.apk
+          "$BUILD_TOOLS/aapt" dump badging "$APK" > /tmp/lana-badging.txt
+          python - <<'PY'
+          from pathlib import Path
+          data = Path('/tmp/lana-badging.txt').read_text()
+          assert "package: name='ai.dreibus.lanalive.voicecheck20261022'" in data
+          assert "application-label:'Лана — проверка голоса'" in data
+          print('Separate package and visible label verified')
+          PY
+          "$BUILD_TOOLS/apksigner" verify --verbose "$APK"
+          "$BUILD_TOOLS/apksigner" verify --print-certs /tmp/lana-installed-baseline/LANA-VOICE-PREVIEW.apk > /tmp/lana-baseline-cert.txt
+          "$BUILD_TOOLS/apksigner" verify --print-certs "$APK" > /tmp/lana-candidate-cert.txt
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          def certificate(path):
+              text = Path(path).read_text()
+              values = re.findall(r'Signer #[0-9]+ certificate SHA-256 digest: ([a-fA-F0-9]+)', text)
+              if not values:
+                  raise SystemExit('Cannot establish signer identity')
+              return sorted(values)
+          if certificate('/tmp/lana-baseline-cert.txt') != certificate('/tmp/lana-candidate-cert.txt'):
+              raise SystemExit('UPDATE BLOCKED: signing key differs from installed preview. Preserve installed app and recover its original keystore; do not distribute this APK as an update.')
+          print('Installed preview signing certificate matched')
+          PY
+          mkdir -p /tmp/lana-delivery
+          cp "$APK" /tmp/lana-delivery/LANA-VOICE-PREVIEW.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LANA-PARALLEL-VOICE-APK
+          path: /tmp/lana-delivery/LANA-VOICE-PREVIEW.apk
+          if-no-files-found: error
