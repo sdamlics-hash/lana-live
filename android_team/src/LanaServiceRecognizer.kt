@@ -30,6 +30,7 @@ internal class LanaServiceRecognizer(private val context: Context) {
     private var turn: LanaRecognitionTurn? = null
     private fun mainThread() { check(Looper.myLooper() == Looper.getMainLooper()) }
     fun owns(client: String) = gate.owns(client)
+    fun hasObserver() = observer != null
     fun report() = recovery.report()
     fun attach(client: String, events: Observer) {
         mainThread()

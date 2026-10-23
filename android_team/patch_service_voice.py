@@ -124,7 +124,7 @@ FINAL_BODY
         }''')
     change('        restoreConnection()','        restoreConnection()\n        bindRecognitionService()')
     # Startup is retried only after an explicit user start, never from a background callback.
-    change('    private fun startVoice() {','    private fun startVoice() {\n        bindRecognitionService()')
+    change('    private fun startVoice() {','    private fun startVoice() {\n        bindRecognitionService()\n        if (!recognitionBindingRequested && recognitionBinder == null) return')
     p.write_text(s)
     workspace = src/'LanaWorkspace.kt'
     ws = workspace.read_text().replace('activity.stopService(android.content.Intent(activity, LanaVoiceKeepAliveService::class.java))','(activity as MainActivity).disableBackgroundRecognition()')

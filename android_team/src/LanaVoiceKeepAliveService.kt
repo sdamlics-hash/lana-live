@@ -23,7 +23,7 @@ class LanaVoiceKeepAliveService : Service() {
             startupFailure?.let { reason -> startupFailure = null; engine.close(reason) }
         }
         fun listen(owner: String,ticket: Long, events: LanaServiceRecognizer.Observer) {
-            if (!engine.owns(owner)) engine.attach(owner,events)
+            if (!engine.owns(owner)) attach(owner,events)
             engine.listen(owner,ticket)
         }
         fun cancel(owner: String) = engine.cancel(owner)
@@ -64,7 +64,7 @@ class LanaVoiceKeepAliveService : Service() {
             startupFailure = null
         } catch (_: Exception) {
             val reason = "Не удалось включить фоновый голосовой сервис. Запусти разговор на открытом экране."
-            startupFailure = reason
+            startupFailure = if (engine.hasObserver()) null else reason
             engine.close(reason)
             removeForeground(); stopSelf()
         }
