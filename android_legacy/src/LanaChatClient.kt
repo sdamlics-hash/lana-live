@@ -31,6 +31,19 @@ internal object LanaChatClient {
             conn.outputStream.use { it.write(body) }
             val status = conn.responseCode
             if (status == 401 || status == 403) throw LanaChatFailure("Сервер отклонил ключ доступа. Проверь подключение в настройках.")
+            if (status == 422) {
+                val safeBody = conn.errorStream?.bufferedReader(Charsets.UTF_8)?.use { reader ->
+                    val chars = CharArray(12001)
+                    var count = 0
+                    while (count < chars.size) {
+                        val n = reader.read(chars, count, chars.size-count)
+                        if (n < 0) break
+                        count += n
+                    }
+                    if (count > 12000) "" else String(chars,0,count)
+                }.orEmpty()
+                throw LanaChatFailure(LanaChatProtocol.validationFailure(safeBody))
+            }
             if (status != 200) throw LanaChatFailure("Сервер ИИ вернул HTTP $status. Ответ не получен.")
             val result = conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
                 val buffer = CharArray(12001)

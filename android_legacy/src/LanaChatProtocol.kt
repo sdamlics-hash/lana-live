@@ -22,6 +22,28 @@ internal object LanaChatProtocol {
             history.forEach { put(JSONObject().put("role", it.role).put("content", it.content)) }
         })
     }
+    /** Only allowlisted validation paths/types escape; never echo input, msg, ctx or body. */
+    fun validationFailure(body: String): String {
+        val fields = linkedSetOf<String>()
+        try {
+            val detail = JSONObject(body).optJSONArray("detail")
+            if (detail != null) for (i in 0 until minOf(detail.length(), 8)) {
+                val row = detail.optJSONObject(i) ?: continue
+                val loc = row.optJSONArray("loc") ?: continue
+                val path = (0 until minOf(loc.length(), 6)).mapNotNull { j ->
+                    val part = loc.opt(j)
+                    when {
+                        part is String && part in setOf("body","message","history","role","content","text","conversation_id","context_notes","memory_consent") -> part
+                        part is Int && part in 0..99 -> part.toString()
+                        else -> null
+                    }
+                }
+                if (path.size == loc.length() && path.firstOrNull() == "body") fields.add(path.joinToString("."))
+            }
+        } catch (_: Exception) { }
+        val suffix = if (fields.isEmpty()) "" else " Поля: " + fields.joinToString(", ") + "."
+        return "Сервер отклонил формат запроса (HTTP 422)." + suffix
+    }
     fun answer(body: String, legacy: Boolean): String {
         val raw = JSONObject(body).opt(if (legacy) "reply" else "answer")
         require(raw is String && raw.isNotBlank()) { "Сервер вернул неподтверждённый или пустой ответ" }

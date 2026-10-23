@@ -38,7 +38,7 @@ internal class LanaPresenceView(context: Context) : View(context) {
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val cx = width / 2f; val cy = height * .43f
-        val r = minOf(width, height) * .29f
+        val r = minOf(width, height) * .32f
         val active = state in setOf("Слушаю", "Думаю", "Отвечаю")
         paint.style = Paint.Style.STROKE; paint.strokeWidth = r * .035f
         paint.color = Color.argb(if (active) (75 + phase * 110).toInt() else 65,36,146,86)
@@ -62,17 +62,41 @@ internal class LanaPresenceView(context: Context) : View(context) {
             cubicTo(cx+r*.3f,cy-r*.26f,cx+r*.03f,cy-r*.56f,cx-r*.09f,cy-r*.66f)
             cubicTo(cx-r*.23f,cy-r*.25f,cx-r*.42f,cy-r*.14f,cx-r*.63f,cy-r*.05f)
         }; canvas.drawPath(hair,paint)
-        paint.color = Color.rgb(38,82,57); paint.strokeWidth = r*.045f; paint.style = Paint.Style.STROKE
-        canvas.drawArc(cx-r*.37f,cy-r*.09f,cx-r*.1f,cy+r*.06f,190f,150f,false,paint)
-        canvas.drawArc(cx+r*.1f,cy-r*.09f,cx+r*.37f,cy+r*.06f,190f,150f,false,paint)
-        paint.color = Color.rgb(170,91,81)
-        val mouth = if (state == "Отвечаю") .08f + phase*.14f else .07f
-        canvas.drawOval(cx-r*.15f,cy+r*.28f,cx+r*.15f,cy+r*(.28f+mouth),paint)
+        // Open almond eyes, distinct brows and a small relaxed smile.
+        paint.strokeWidth = r*.025f; paint.style = Paint.Style.STROKE
+        paint.color = Color.rgb(44,69,53)
+        for (side in listOf(-1f,1f)) {
+            val ex = cx + side*r*.245f
+            val eye = android.graphics.Path().apply {
+                moveTo(ex-r*.12f,cy-r*.015f)
+                quadTo(ex,cy-r*.14f,ex+r*.12f,cy-r*.015f)
+                quadTo(ex,cy+r*.075f,ex-r*.12f,cy-r*.015f)
+            }
+            paint.style = Paint.Style.FILL; paint.color = Color.rgb(255,252,243)
+            canvas.drawPath(eye,paint)
+            paint.color = Color.rgb(43,117,85); canvas.drawCircle(ex,cy-r*.025f,r*.055f,paint)
+            paint.color = Color.rgb(29,47,39); canvas.drawCircle(ex,cy-r*.025f,r*.027f,paint)
+            paint.style = Paint.Style.STROKE; canvas.drawPath(eye,paint)
+            canvas.drawArc(ex-r*.13f,cy-r*.23f,ex+r*.13f,cy-r*.1f,205f,130f,false,paint)
+        }
+        paint.color = Color.rgb(207,163,136); paint.strokeWidth = r*.018f
+        val nose = android.graphics.Path().apply {
+            moveTo(cx+r*.015f,cy+r*.045f); quadTo(cx-r*.045f,cy+r*.16f,cx+r*.04f,cy+r*.17f)
+        }; canvas.drawPath(nose,paint)
+        paint.color = Color.rgb(169,78,82); paint.strokeWidth = r*.03f
+        if (state == "Отвечаю") {
+            paint.style = Paint.Style.FILL
+            canvas.drawOval(cx-r*.095f,cy+r*.29f,cx+r*.095f,cy+r*(.33f+phase*.1f),paint)
+        } else {
+            canvas.drawArc(cx-r*.13f,cy+r*.24f,cx+r*.13f,cy+r*.35f,10f,160f,false,paint)
+        }
+        // Asymmetric leaf ornament above one temple, rather than a head-top tuft.
         paint.style = Paint.Style.FILL
         for (i in 0..2) {
-            paint.color = if (i == 1) Color.rgb(122,196,76) else Color.rgb(66,153,68)
-            canvas.save(); canvas.rotate((i-1)*32f,cx,cy-r*.95f)
-            canvas.drawOval(cx-r*.14f,cy-r*1.28f,cx+r*.14f,cy-r*.79f,paint); canvas.restore()
+            paint.color = if (i == 1) Color.rgb(148,204,83) else Color.rgb(80,162,77)
+            val lx=cx+r*(.44f+i*.12f); val ly=cy-r*(.8f+i*.1f)
+            canvas.save(); canvas.rotate(35f+i*24f,lx,ly)
+            canvas.drawOval(lx-r*.075f,ly-r*.22f,lx+r*.075f,ly+r*.09f,paint); canvas.restore()
         }
         paint.color = Color.rgb(42,111,68); paint.textSize = height*.12f; paint.textAlign = Paint.Align.CENTER
         canvas.drawText(state,cx,height*.96f,paint)

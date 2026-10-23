@@ -9,6 +9,13 @@ class LanaLegacyProtocolTest {
         assertEquals("user",body.getJSONArray("history").getJSONObject(0).getString("role"))
         assertEquals("Да",LanaChatProtocol.answer("{\"reply\":\"Да\"}",true))
     }
+    @Test fun validationDiagnosticsNeverEchoSecretsOrUserText() {
+        val raw = """{"detail":[{"loc":["body","history",10,"content"],"msg":"PRIVATE_SECRET","input":"PRIVATE_TEXT","ctx":{"token":"PRIVATE_KEY"}},{"loc":["body","PRIVATE_PATH"]}]}"""
+        val text = LanaChatProtocol.validationFailure(raw)
+        assertTrue(text.contains("body.history.10.content"))
+        assertFalse(text.contains("PRIVATE"))
+        assertFalse(LanaChatProtocol.validationFailure("not json PRIVATE").contains("PRIVATE"))
+    }
     @Test fun modernSchemaRemainsSeparate() {
         val body = LanaChatProtocol.request("id", "Вопрос", listOf("Память"), false, listOf(LanaLegacyTurn("user","Не отправлять")))
         assertEquals(setOf("conversation_id","text","context_notes","memory_consent"),body.keys().asSequence().toSet())
