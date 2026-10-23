@@ -11,7 +11,7 @@ internal object LanaTypedDialogue {
         val parent = anchor.parent as? LinearLayout ?: return
         val prefs = activity.getSharedPreferences("lana_typed_dialogue", Activity.MODE_PRIVATE)
         val box = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; visibility = if (prefs.getBoolean("expanded", false)) View.VISIBLE else View.GONE }
-        val count = android.widget.TextView(activity)
+        val counter = android.widget.TextView(activity)
         val send = Button(activity)
         val input = EditText(activity).apply {
             hint = "Вопрос или команда текстом"
@@ -19,13 +19,13 @@ internal object LanaTypedDialogue {
             setText(prefs.getString("draft", "")); contentDescription = "dialogue_text_input"
             addTextChangedListener(object : android.text.TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) { }
-                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { prefs.edit().putString("draft", s.toString()).apply(); count.text = "${s?.length ?: 0}/3000 символов"; send.isEnabled = !s.isNullOrBlank() }
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { prefs.edit().putString("draft", s.toString()).apply(); counter.text = "${s?.length ?: 0}/3000 символов"; send.isEnabled = !s.isNullOrBlank() }
                 override fun afterTextChanged(s: android.text.Editable?) { }
             })
         }
         box.addView(android.widget.TextView(activity).apply { text = "Команды выполняются только после нажатия «Отправить». Заметки и задачи сохраняются на планшете." })
         box.addView(input)
-        count.text = "${input.length()}/3000 символов"; box.addView(count)
+        counter.text = "${input.length()}/3000 символов"; box.addView(counter)
         val shortcuts = android.widget.HorizontalScrollView(activity)
         val row = LinearLayout(activity)
         for (sample in listOf("Прочитай мои задачи", "Сводка задач", "Прочитай все заметки", "Что ты умеешь", "Передай команде задание: ")) {
