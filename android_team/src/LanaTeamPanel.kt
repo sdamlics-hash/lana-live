@@ -76,12 +76,24 @@ internal class LanaTeamPanel(private val activity: Activity) {
                 val state = when (row.getString("status")) {
                     "running" -> "Отправлено, ожидаю ответ"
                     "review" -> "Ответ получен — не проверен"
-                    "verified" -> "Результат подтверждён пользователем"
+                    "verified" -> "Ответ принят пользователем; выполнение действий не проверено"
                     "rejected" -> "Ответ отклонён пользователем"
                     "interrupted" -> "Сеанс прерван; результат неизвестен, повторной отправки не было"
                     else -> "Ошибка запроса"
                 }
                 panel.addView(label("OpenAI · $state\n" + row.getString("task") + "\n" + row.optString("answer", row.optString("error"))))
+                if (row.getString("status") in setOf("verified", "rejected")) panel.addView(Button(activity).apply {
+                    text = "Вернуть на проверку"
+                    contentDescription = "team_review_reopen"
+                    setOnClickListener {
+                        try {
+                            journal.reopen(row.getString("id"))
+                            selectedStatus = "review"
+                            render()
+                            Toast.makeText(activity, "Ответ возвращён на проверку; повторной отправки нет", Toast.LENGTH_LONG).show()
+                        } catch (_: Exception) { Toast.makeText(activity, "Не удалось сохранить изменение отметки", Toast.LENGTH_LONG).show() }
+                    }
+                })
                 if (row.has("reviewNote")) panel.addView(label("Причина: " + row.getString("reviewNote")))
                 if (row.getString("status") == "review") {
                     val reason = EditText(activity).apply {
@@ -98,10 +110,16 @@ internal class LanaTeamPanel(private val activity: Activity) {
                     })
                 }
                 if (row.getString("status") == "review") panel.addView(Button(activity).apply {
-                    text = "Я проверил результат"
+                    text = "Принять этот ответ"
                     setOnClickListener {
-                        try { journal.confirm(row.getString("id")); render() }
-                        catch (_: Exception) { Toast.makeText(activity, "Не удалось сохранить подтверждение", Toast.LENGTH_LONG).show() }
+                        android.app.AlertDialog.Builder(activity)
+                            .setTitle("Принять ответ помощника?")
+                            .setMessage("Эта отметка оценивает ответ. Она не подтверждает выполнение предложенных действий или работу функций на планшете.")
+                            .setNegativeButton("Назад", null)
+                            .setPositiveButton("Принять ответ") { _, _ ->
+                                try { journal.confirm(row.getString("id")); render() }
+                                catch (_: Exception) { Toast.makeText(activity, "Не удалось сохранить подтверждение", Toast.LENGTH_LONG).show() }
+                            }.show()
                     }
                 })
             }

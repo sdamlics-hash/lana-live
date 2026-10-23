@@ -4,6 +4,43 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LanaTeamJournalTest {
+    @Test fun mistakenConfirmationCanBeReopenedWithoutResendingOrLosingAnswer() {
+        var stored = "[]"
+        val journal = LanaTeamJournal(stored) { stored = it; true }
+        val id = journal.begin("План развития")
+        journal.finish(id, "Сохранённый ответ", null)
+        journal.confirm(id)
+        journal.reopen(id)
+        val row = LanaTeamJournal(stored) { true }.filtered("", "review").getJSONObject(0)
+        assertEquals(id, row.getString("id"))
+        assertEquals("Сохранённый ответ", row.getString("answer"))
+        assertEquals("verified", row.getJSONArray("reviewHistory").getJSONObject(0).getString("status"))
+        assertEquals(1, journal.records().length())
+    }
+    @Test fun reopeningRejectionKeepsPreviousReasonInHistory() {
+        val journal = LanaTeamJournal("[]") { true }
+        val id = journal.begin("Задание")
+        journal.finish(id, "Ответ", null)
+        journal.reject(id, "Не по теме")
+        journal.reopen(id)
+        val row = journal.records().getJSONObject(0)
+        assertFalse(row.has("reviewNote"))
+        assertEquals("Не по теме", row.getJSONArray("reviewHistory").getJSONObject(0).getString("note"))
+        journal.reject(id, "Уточнённая причина")
+        assertEquals("rejected", journal.records().getJSONObject(0).getString("status"))
+    }
+    @Test fun reopeningFailureRetainsOldReviewAndPendingCannotBeReopened() {
+        var writable = true
+        val journal = LanaTeamJournal("[]") { writable }
+        val id = journal.begin("Задание")
+        try { journal.reopen(id); fail("Cannot reopen running") } catch (_: IllegalStateException) { }
+        journal.finish(id, "Ответ", null)
+        journal.confirm(id)
+        writable = false
+        try { journal.reopen(id); fail("Must save") } catch (_: IllegalStateException) { }
+        assertEquals("verified", journal.records().getJSONObject(0).getString("status"))
+    }
+
     @Test fun rejectionAndSearchSurviveReloadWithoutChangingOtherAnswers() {
         var stored = "[]"
         val journal = LanaTeamJournal(stored) { stored = it; true }

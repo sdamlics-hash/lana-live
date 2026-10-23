@@ -73,6 +73,19 @@ internal class LanaTeamJournal(raw: String, private val write: (String) -> Boole
         } else row.put("error", error!!.take(200)).put("status", "error")
         commit(next)
     }
+    fun reopen(id: String) {
+        val next = records()
+        val row = (0 until next.length()).map { next.getJSONObject(it) }.single { it.getString("id") == id }
+        val previous = row.getString("status")
+        check(previous in setOf("verified", "rejected"))
+        val history = row.optJSONArray("reviewHistory") ?: JSONArray()
+        history.put(JSONObject().put("status", previous).put("note", row.optString("reviewNote"))
+            .put("reviewedAt", row.optLong("reviewedAt")).put("reopenedAt", System.currentTimeMillis()))
+        row.put("reviewHistory", history).put("status", "review")
+        row.remove("reviewNote")
+        row.remove("reviewedAt")
+        commit(next)
+    }
     fun confirm(id: String) {
         val next = records()
         val row = (0 until next.length()).map { next.getJSONObject(it) }.single { it.getString("id") == id }
