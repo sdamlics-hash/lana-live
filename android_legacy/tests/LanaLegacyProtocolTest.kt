@@ -16,6 +16,26 @@ class LanaLegacyProtocolTest {
         assertFalse(text.contains("PRIVATE"))
         assertFalse(LanaChatProtocol.validationFailure("not json PRIVATE").contains("PRIVATE"))
     }
+    @Test fun sustainedConversationFitsLiveServerLimitsWithoutLosingLocalLedger() {
+        val h = LanaLegacyHistory()
+        h.snapshot("A")
+        repeat(30) { i ->
+            val local = h.snapshot("A")
+            val wire = LanaChatProtocol.request("id","question $i",emptyList(),true,local).getJSONArray("history")
+            assertTrue(wire.length() <= 12)
+            assertEquals(0,wire.length()%2)
+            if (wire.length()>0) {
+                assertEquals("user",wire.getJSONObject(0).getString("role"))
+                assertEquals("assistant",wire.getJSONObject(wire.length()-1).getString("role"))
+                assertEquals("question ${i-1}",wire.getJSONObject(wire.length()-2).getString("content"))
+            }
+            h.commit("A","question $i","answer $i")
+        }
+        assertEquals(16,h.snapshot("A").size)
+        val wire=LanaChatProtocol.request("id","q",emptyList(),true,listOf(LanaLegacyTurn("assistant","x".repeat(5000)))).getJSONArray("history")
+        assertEquals(4000,wire.getJSONObject(0).getString("content").length)
+        try { LanaChatProtocol.request("id","q".repeat(2400),listOf("n".repeat(2000)),true,emptyList());fail("Reject oversized combined message before HTTP") } catch (_:IllegalArgumentException) {}
+    }
     @Test fun modernSchemaRemainsSeparate() {
         val body = LanaChatProtocol.request("id", "Вопрос", listOf("Память"), false, listOf(LanaLegacyTurn("user","Не отправлять")))
         assertEquals(setOf("conversation_id","text","context_notes","memory_consent"),body.keys().asSequence().toSet())
