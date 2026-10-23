@@ -2,18 +2,18 @@ package ai.dreibus.lanalive
 
 import android.animation.ValueAnimator
 import android.content.Context
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
+import android.graphics.*
 import android.view.View
 
-/** Animation follows the actual status text; it is not an agent activity simulation. */
+/** Local portrait; motion indicates actual runtime state, never simulated agent work. */
 internal class LanaPresenceView(context: Context) : View(context) {
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    private val portrait by lazy { BitmapFactory.decodeResource(resources, R.drawable.lana_portrait) }
     private var phase = 0f
     private var state = "Готова"
+    private val active get() = state in setOf("Слушаю", "Думаю", "Отвечаю")
     private val animator = ValueAnimator.ofFloat(0f, 1f).apply {
-        duration = 1800L; repeatCount = ValueAnimator.INFINITE; repeatMode = ValueAnimator.REVERSE
+        duration = 1600L; repeatCount = ValueAnimator.INFINITE; repeatMode = ValueAnimator.REVERSE
         addUpdateListener { phase = it.animatedValue as Float; invalidate() }
     }
     fun update(value: String) {
@@ -28,77 +28,56 @@ internal class LanaPresenceView(context: Context) : View(context) {
         updateAnimation(); invalidate()
     }
     private fun updateAnimation() {
-        if (isAttachedToWindow && isShown && state in setOf("Слушаю", "Думаю", "Отвечаю")) {
+        if (isAttachedToWindow && isShown && active) {
             if (!animator.isStarted) animator.start()
         } else { animator.cancel(); phase = 0f }
     }
     override fun onAttachedToWindow() { super.onAttachedToWindow(); updateAnimation() }
     override fun onDetachedFromWindow() { animator.cancel(); super.onDetachedFromWindow() }
-    override fun onVisibilityChanged(changedView: View, visibility: Int) { super.onVisibilityChanged(changedView, visibility); if (isAttachedToWindow) updateAnimation() }
+    override fun onVisibilityChanged(changedView: View, visibility: Int) {
+        super.onVisibilityChanged(changedView, visibility)
+        if (isAttachedToWindow) updateAnimation()
+    }
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val cx = width / 2f; val cy = height * .43f
-        val r = minOf(width, height) * .32f
-        val active = state in setOf("Слушаю", "Думаю", "Отвечаю")
-        paint.style = Paint.Style.STROKE; paint.strokeWidth = r * .035f
-        paint.color = Color.argb(if (active) (75 + phase * 110).toInt() else 65,36,146,86)
-        canvas.drawCircle(cx,cy,r*(1.22f+phase*.09f),paint)
-        canvas.save(); canvas.rotate(if (state == "Думаю") phase * 180f else -25f,cx,cy)
-        paint.strokeWidth = r*.08f; paint.strokeCap = Paint.Cap.ROUND
-        paint.color = Color.rgb(78,178,91)
-        canvas.drawArc(cx-r*1.24f,cy-r*1.24f,cx+r*1.24f,cy+r*1.24f,20f,95f,false,paint)
-        canvas.restore(); paint.style = Paint.Style.FILL
-        // A stylized female portrait with emerald hair and a leaf crown.
-        paint.shader = android.graphics.LinearGradient(cx-r,cy-r,cx+r,cy+r,
-            Color.rgb(13,86,63),Color.rgb(55,151,85),android.graphics.Shader.TileMode.CLAMP)
-        canvas.drawOval(cx-r*.86f,cy-r*1.03f,cx+r*.86f,cy+r*.85f,paint)
-        canvas.drawOval(cx-r,cy+r*.5f,cx+r,cy+r*1.1f,paint)
-        paint.shader = null; paint.color = Color.rgb(246,220,191)
-        canvas.drawRoundRect(cx-r*.18f,cy+r*.38f,cx+r*.18f,cy+r*.8f,r*.12f,r*.12f,paint)
-        canvas.drawOval(cx-r*.53f,cy-r*.65f,cx+r*.53f,cy+r*.57f,paint)
-        paint.color = Color.rgb(22,99,66)
-        val hair = android.graphics.Path().apply {
-            moveTo(cx-r*.63f,cy-r*.05f); cubicTo(cx-r*.73f,cy-r*1.12f,cx+r*.5f,cy-r*1.12f,cx+r*.61f,cy-r*.1f)
-            cubicTo(cx+r*.3f,cy-r*.26f,cx+r*.03f,cy-r*.56f,cx-r*.09f,cy-r*.66f)
-            cubicTo(cx-r*.23f,cy-r*.25f,cx-r*.42f,cy-r*.14f,cx-r*.63f,cy-r*.05f)
-        }; canvas.drawPath(hair,paint)
-        // Open almond eyes, distinct brows and a small relaxed smile.
-        paint.strokeWidth = r*.025f; paint.style = Paint.Style.STROKE
-        paint.color = Color.rgb(44,69,53)
-        for (side in listOf(-1f,1f)) {
-            val ex = cx + side*r*.245f
-            val eye = android.graphics.Path().apply {
-                moveTo(ex-r*.12f,cy-r*.015f)
-                quadTo(ex,cy-r*.14f,ex+r*.12f,cy-r*.015f)
-                quadTo(ex,cy+r*.075f,ex-r*.12f,cy-r*.015f)
-            }
-            paint.style = Paint.Style.FILL; paint.color = Color.rgb(255,252,243)
-            canvas.drawPath(eye,paint)
-            paint.color = Color.rgb(43,117,85); canvas.drawCircle(ex,cy-r*.025f,r*.055f,paint)
-            paint.color = Color.rgb(29,47,39); canvas.drawCircle(ex,cy-r*.025f,r*.027f,paint)
-            paint.style = Paint.Style.STROKE; canvas.drawPath(eye,paint)
-            canvas.drawArc(ex-r*.13f,cy-r*.23f,ex+r*.13f,cy-r*.1f,205f,130f,false,paint)
+        val cx = width / 2f
+        val radius = minOf(width * .38f, height * .36f)
+        val cy = height * .41f
+        val accent = when (state) {
+            "Слушаю" -> Color.rgb(63,140,107)
+            "Думаю" -> Color.rgb(184,140,80)
+            "Отвечаю" -> Color.rgb(188,112,100)
+            else -> Color.rgb(142,157,144)
         }
-        paint.color = Color.rgb(207,163,136); paint.strokeWidth = r*.018f
-        val nose = android.graphics.Path().apply {
-            moveTo(cx+r*.015f,cy+r*.045f); quadTo(cx-r*.045f,cy+r*.16f,cx+r*.04f,cy+r*.17f)
-        }; canvas.drawPath(nose,paint)
-        paint.color = Color.rgb(169,78,82); paint.strokeWidth = r*.03f
+        paint.shader = null; paint.style = Paint.Style.FILL
+        paint.color = Color.argb(if (active) (22 + phase*20).toInt() else 18, 93,139,105)
+        canvas.drawCircle(cx,cy,radius*(1.10f+phase*.035f),paint)
+        val bounds = RectF(cx-radius,cy-radius,cx+radius,cy+radius)
+        canvas.save()
+        canvas.clipPath(Path().apply { addCircle(cx,cy,radius,Path.Direction.CW) })
+        paint.color = Color.rgb(250,244,235)
+        canvas.drawRect(bounds,paint)
+        portrait?.let { canvas.drawBitmap(it,null,bounds,paint) }
+        canvas.restore()
+        paint.style = Paint.Style.STROKE; paint.strokeWidth = resources.displayMetrics.density * 2f
+        paint.color = accent; paint.strokeCap = Paint.Cap.ROUND
+        if (active) {
+            val start = if (state == "Думаю") 30f+phase*240f else 35f
+            canvas.drawArc(cx-radius*1.08f,cy-radius*1.08f,cx+radius*1.08f,cy+radius*1.08f,start,100f+phase*55f,false,paint)
+        }
+        // A voice meter is decorative state feedback, not an audio-amplitude claim.
         if (state == "Отвечаю") {
             paint.style = Paint.Style.FILL
-            canvas.drawOval(cx-r*.095f,cy+r*.29f,cx+r*.095f,cy+r*(.33f+phase*.1f),paint)
-        } else {
-            canvas.drawArc(cx-r*.13f,cy+r*.24f,cx+r*.13f,cy+r*.35f,10f,160f,false,paint)
+            for (i in -2..2) {
+                val x = cx+i*radius*.12f
+                val bar = radius*(.04f + .08f*(1f-kotlin.math.abs(i)/3f)*phase)
+                canvas.drawRoundRect(x-radius*.025f,cy+radius*.84f-bar,x+radius*.025f,cy+radius*.84f+bar,radius*.02f,radius*.02f,paint)
+            }
         }
-        // Asymmetric leaf ornament above one temple, rather than a head-top tuft.
-        paint.style = Paint.Style.FILL
-        for (i in 0..2) {
-            paint.color = if (i == 1) Color.rgb(148,204,83) else Color.rgb(80,162,77)
-            val lx=cx+r*(.44f+i*.12f); val ly=cy-r*(.8f+i*.1f)
-            canvas.save(); canvas.rotate(35f+i*24f,lx,ly)
-            canvas.drawOval(lx-r*.075f,ly-r*.22f,lx+r*.075f,ly+r*.09f,paint); canvas.restore()
-        }
-        paint.color = Color.rgb(42,111,68); paint.textSize = height*.12f; paint.textAlign = Paint.Align.CENTER
+        paint.style = Paint.Style.FILL; paint.textAlign = Paint.Align.CENTER
+        paint.typeface = Typeface.create("sans-serif-medium",Typeface.NORMAL)
+        paint.textSize = minOf(14f*resources.displayMetrics.scaledDensity,height*.085f)
+        paint.color = Color.rgb(81,99,85)
         canvas.drawText(state,cx,height*.96f,paint)
     }
 }

@@ -16,6 +16,18 @@ class LanaVoiceCommandsTest {
         check("Лана", false, LanaVoiceCommands.Action.WAKE)
     }
 
+    @Test fun reversedPresenceCheckAndObservedSamsungTranscript() {
+        check("Ты тут, Лана?", false, LanaVoiceCommands.Action.WAKE)
+        check("Ты здесь Лана?", false, LanaVoiceCommands.Action.WAKE)
+        check("ты тут вала", true, LanaVoiceCommands.Action.WAKE)
+        check("ты тут вала", false, LanaVoiceCommands.Action.IGNORE)
+        check("ты тут", true, LanaVoiceCommands.Action.WAKE)
+        check("ты тут", false, LanaVoiceCommands.Action.IGNORE)
+        check("Ты тут была вчера?", true, LanaVoiceCommands.Action.ASK)
+        check("Ты тут Лана, объясни задачу", true, LanaVoiceCommands.Action.ASK)
+        check("Лана стоп ты тут", true, LanaVoiceCommands.Action.STOP)
+    }
+
     @Test fun followUpNeedsActiveConversation() {
         check("А завтра что будет?", true, LanaVoiceCommands.Action.ASK)
         check("А завтра что будет?", false, LanaVoiceCommands.Action.IGNORE)
