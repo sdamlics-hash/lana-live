@@ -549,7 +549,7 @@ class LanaConnectionCipherTest {
 
 '''
     s=one(s, '    private fun appendHistory(line: String) {', teamMethod+'    private fun appendHistory(line: String) {')
-    for name in ('LanaTeamPanel.kt', 'LanaTeamJournal.kt', 'LanaTeamPrompt.kt', 'LanaSelfCheck.kt', 'LanaJournalReport.kt', 'LanaTeamVoice.kt', 'LanaLocalWorkspace.kt', 'LanaPresenceView.kt', 'LanaVoiceKeepAliveService.kt', 'LanaDialoguePrompt.kt'):
+    for name in ('LanaTeamPanel.kt', 'LanaTeamJournal.kt', 'LanaTeamPrompt.kt', 'LanaSelfCheck.kt', 'LanaJournalReport.kt', 'LanaTeamVoice.kt', 'LanaLocalWorkspace.kt', 'LanaPresenceView.kt', 'LanaVoiceKeepAliveService.kt', 'LanaDialoguePrompt.kt', 'LanaTypedDialogue.kt'):
         shutil.copyfile(ROOT/'android_team/src'/name, src/name)
     for name in ('LanaTeamJournalTest.kt', 'LanaTeamPromptTest.kt', 'LanaSelfCheckTest.kt', 'LanaJournalReportTest.kt', 'LanaTeamVoiceTest.kt', 'LanaLocalWorkspaceTest.kt', 'LanaDialoguePromptTest.kt'):
         shutil.copyfile(ROOT/'android_team/tests'/name, tests/name)
@@ -607,6 +607,37 @@ class LanaConnectionCipherTest {
         val address = findViewById<EditText>(R.id.coreServerUrl).text.toString().trim()
         val secret = voiceSessionToken''')
     s=one(s, 'voiceConversationId, question, chosenNotes, legacyMode, priorTurns)', 'voiceConversationId, modelQuestion, chosenNotes, legacyMode, priorTurns)')
+    s=one(s, '        val legacyPrefs = getSharedPreferences("lana_connection_mode", MODE_PRIVATE)', '''        LanaTypedDialogue.install(this, findViewById<Button>(R.id.voiceButton)) { question ->
+            if (speaking) {
+                android.widget.Toast.makeText(this, "Дождись ответа или останови разговор кнопкой", android.widget.Toast.LENGTH_LONG).show()
+                false
+            } else {
+                cancelRecognition()
+                voiceSession.start()
+                voiceEnabled = true
+                conversationActive = true
+                appendHistory("Вы: " + question)
+                voiceDiagnostic("Текстовый ввод: та же маршрутизация команд")
+                askFromLana(question)
+                true
+            }
+        }
+        val legacyPrefs = getSharedPreferences("lana_connection_mode", MODE_PRIVATE)''')
+    s=one(s, '    private var speaking = false', '    private var speaking = false\n    private var typedTextOnly = false')
+    s=one(s, '    private fun speakFromLana(answer: String) {', '''    private fun speakFromLana(answer: String) {
+        if (typedTextOnly) {
+            typedTextOnly = false
+            voiceEnabled = false
+            speaking = false
+            chatRequestStartedAt = 0L
+            appendHistory("Лана: " + answer)
+            status.text = "Ответ текстом получен"
+            return
+        }''')
+    s=one(s, '                appendHistory("Вы: " + question)', '''                typedTextOnly = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED
+                appendHistory("Вы: " + question)''')
+    s=one(s, '                status.text = "Слух остановлен"', '''                typedTextOnly = false
+                status.text = "Слух остановлен"''')
     manifest=out/'app/src/main/AndroidManifest.xml'
     manifest.write_text(manifest.read_text().replace('<application', '<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />\n    <application', 1).replace('</application>', '<service android:name=".LanaVoiceKeepAliveService" android:exported="false" android:foregroundServiceType="microphone" />\n    </application>'))
     p.write_text(s)

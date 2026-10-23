@@ -3,13 +3,19 @@ package ai.dreibus.lanalive
 import java.util.Locale
 
 internal object LanaTeamVoice {
-    private val dispatch = Regex("^(?:передай|отправь)\\s+(?:задание\\s+)?(?:помощнику\\s+)?(?:openai|open ai|опенай|опен аи|команде)\\s*[:,—-]?\\s*(?:задание\\s*[:,—-]?\\s*)?(.+)$", RegexOption.IGNORE_CASE)
+    private val dispatch = Regex("^(?:передай|отправь)\\s+(?:задание\\s+)?(?:помощнику\\s+)?(?:openai|open ai|опенай|опен аи|команде|команды)\\b\\s*[:,—-]?\\s*", RegexOption.IGNORE_CASE)
+    private fun input(words: String) = words.trim().replace(Regex("^лана[, ]+", RegexOption.IGNORE_CASE), "")
     fun task(words: String): String? {
-        val input = words.trim().replace(Regex("^лана[, ]+", RegexOption.IGNORE_CASE), "")
-        return dispatch.matchEntire(input)?.groupValues?.get(1)?.trim()?.takeIf { it.isNotBlank() }
+        val value = input(words)
+        val prefix = dispatch.find(value) ?: return null
+        val task = value.substring(prefix.range.last + 1)
+            .replace(Regex("^задание(?:\\s*[:,—-]\\s*|\\s+|$)", RegexOption.IGNORE_CASE), "").trim()
+        return task.takeIf { it.any { letter -> letter.isLetterOrDigit() } }
     }
     fun localReply(words: String): String? {
         val q = words.lowercase(Locale.ROOT).replace('ё', 'е').replace(Regex("[?!.,]"), "").replace(Regex("\\s+"), " ").trim().removePrefix("лана ")
+        if (task(words) == null && (dispatch.containsMatchIn(input(words)) || q.startsWith("дай команду")))
+            return "Для отправки назови получателя и само задание. Например: передай команде задание, составь план проверки Ланы. Пока ничего не отправлено."
         return when (q) {
             "ты можешь давать команды чату gpt", "команды можешь давать чату gpt", "можешь дать команду в chatgpt", "ты подключена к chatgpt" ->
                 "Текущим чатом ChatGPT я не управляю. Могу передать отдельное задание API-помощнику OpenAI и сохранить ответ в Команде. Скажи: передай команде задание, и затем само задание."
@@ -22,6 +28,6 @@ internal object LanaTeamVoice {
             else -> null
         }
     }
-    fun wantsLastReply(words: String): Boolean = words.lowercase(Locale.ROOT).trim().trimEnd('.', '?', '!') in setOf(
+    fun wantsLastReply(words: String): Boolean = words.lowercase(Locale.ROOT).replace("почитай", "прочитай").trim().trimEnd('.', '?', '!') in setOf(
         "прочитай последний ответ команды", "какой последний ответ команды", "лана прочитай последний ответ команды")
 }

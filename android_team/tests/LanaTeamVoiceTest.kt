@@ -4,6 +4,15 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LanaTeamVoiceTest {
+    @Test fun observedRecognitionVariantDispatchesButIncompleteCommandDoesNot() {
+        assertEquals("предложить три способа сократить задержки голосового ответа", LanaTeamVoice.task("передай команды задание предложить три способа сократить задержки голосового ответа"))
+        assertNull(LanaTeamVoice.task("Передай команде задание"))
+        assertNull(LanaTeamVoice.task("Передай команде задание:"))
+        assertNull(LanaTeamVoice.task("Передай командеврагов секрет"))
+        assertTrue(LanaTeamVoice.localReply("Передай команде задание")!!.contains("ничего не отправлено"))
+        assertNull(LanaTeamVoice.localReply("Передай команде задание: проверь план"))
+    }
+
     @Test fun onlyExplicitDispatchCreatesTasksAndPreservesTaskText() {
         assertEquals("Составь план проверки.", LanaTeamVoice.task("Лана, передай команде задание: Составь план проверки."))
         assertEquals("Сколько будет 2+2?", LanaTeamVoice.task("Отправь помощнику OpenAI: Сколько будет 2+2?"))

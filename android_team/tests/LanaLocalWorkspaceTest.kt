@@ -4,6 +4,13 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LanaLocalWorkspaceTest {
+    @Test fun observedReadVariantsUseLocalTasksRatherThanModel() {
+        for (q in listOf("Почитай мои задачи", "Зачитай мои задачи", "Лана, почитай мои задачи")) {
+            assertTrue(q, LanaLocalWorkspace.matches(q))
+            assertEquals("Незавершённых задач нет.", LanaLocalWorkspace("{\"tasks\":[],\"notes\":[]}") { true }.handle(q))
+        }
+    }
+
     private val empty = "{\"tasks\":[],\"notes\":[]}"
     @Test fun notesAndTasksPersistTogetherAndDuplicateIsBlocked() {
         var saved = empty

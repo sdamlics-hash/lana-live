@@ -22,7 +22,7 @@ internal class LanaLocalWorkspace(raw: String, private val write: (String) -> Bo
     private fun save(): String? = if (write(root.toString())) null else "Не удалось сохранить изменение. Проверь память во вкладке приложения."
     fun handle(words: String): String? {
         val original = words.trim().replace(Regex("^лана[, ]+", RegexOption.IGNORE_CASE), "")
-        val q = original.lowercase(Locale.ROOT).trimEnd('.', '?', '!')
+        val q = original.lowercase(Locale.ROOT).replace("почитай", "прочитай").replace("зачитай", "прочитай").trimEnd('.', '?', '!')
         val note = Regex("^(?:запомни|сохрани заметку)\\s*[:,—-]?\\s+(.+)$", RegexOption.IGNORE_CASE).matchEntire(original)?.groupValues?.get(1)?.trim()
         val task = Regex("^(?:добавь задачу|создай задачу|запиши задачу)\\s*[:,—-]?\\s+(.+)$", RegexOption.IGNORE_CASE).matchEntire(original)?.groupValues?.get(1)?.trim()
         if (note != null || task != null) {
@@ -56,7 +56,7 @@ internal class LanaLocalWorkspace(raw: String, private val write: (String) -> Bo
     }
     companion object {
         fun matches(words: String): Boolean {
-            val q = words.lowercase(Locale.ROOT).trim().replace(Regex("^лана[, ]+"), "")
+            val q = words.lowercase(Locale.ROOT).replace("почитай", "прочитай").replace("зачитай", "прочитай").trim().replace(Regex("^лана[, ]+"), "")
             return listOf("запомни ", "запомни:", "сохрани заметку", "добавь задачу", "создай задачу", "запиши задачу", "заверши задачу", "задача выполнена").any { q.startsWith(it) } || q.trimEnd('.', '?', '!') in setOf("какие у меня задачи", "прочитай мои задачи", "покажи мои задачи", "что ты запомнила", "прочитай мои заметки", "прочитай память")
         }
     }
