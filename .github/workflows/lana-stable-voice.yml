@@ -112,7 +112,7 @@ jobs:
           app = tree.getroot().find('application')
           if app is None:
               raise SystemExit('Application manifest missing')
-          app.set(a+'label', 'Лана — стабильная')
+          app.set(a+'label', 'LANA')
           for node in tree.iter():
               authority = node.get(a+'authorities')
               if authority:
@@ -136,7 +136,7 @@ jobs:
           from pathlib import Path
           data = Path('/tmp/lana-badging.txt').read_text()
           assert "package: name='ai.dreibus.lanalive.stablevoice'" in data
-          assert "application-label:'Лана — стабильная'" in data
+          assert "application-label:'LANA'" in data
           print('Separate package and visible label verified')
           PY
           "$BUILD_TOOLS/apksigner" sign --ks /tmp/lana-signing/lana-stable.p12 --ks-key-alias lana-stable --ks-pass env:SIGNING_PASSWORD --key-pass env:SIGNING_PASSWORD "$APK"

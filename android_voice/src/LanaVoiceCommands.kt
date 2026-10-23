@@ -32,7 +32,7 @@ internal object LanaVoiceCommands {
             return if (activeConversation) Action.STOP else Action.IGNORE
         }
 
-        val isWake = normalized == "лана" ||
+        val isWake = normalized == "лана" || normalized == "lana" ||
             normalized == "лана ты тут" ||
             normalized == "ладно ты тут" ||
             normalized == "ладно ты здесь" ||

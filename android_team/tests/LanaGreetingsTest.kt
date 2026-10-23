@@ -4,10 +4,11 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LanaGreetingsTest {
-    @Test fun repliesVaryWithoutImmediateRepetitionAndRepeatOnlyAfterFullCycle() {
-        val replies = (1..8).map { LanaGreetings.next() }
-        assertEquals(4,replies.take(4).distinct().size)
-        assertEquals(replies.take(4),replies.drop(4))
+    @Test fun wakeAcknowledgementIsAlwaysTheRequestedPhrase() {
+        repeat(8) { assertEquals("Да, Сантик.",LanaGreetings.next()) }
+        for (name in listOf("Лана", "LANA", "lana")) {
+            assertEquals(LanaVoiceCommands.Action.WAKE,LanaVoiceCommands.choose(name,false))
+        }
     }
     @Test fun samsungWakeVariantIsLocalButLongerQuestionIsNotSwallowed() {
         for (active in listOf(false,true)) {

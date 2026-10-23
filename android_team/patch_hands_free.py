@@ -80,3 +80,18 @@ def install(out: Path, root: Path):
     p = out/'app/src/main/java/ai/dreibus/lanalive/LanaWorkspace.kt'
     s = p.read_text().replace('fun contextNotes(activity: Activity)', 'fun contextNotes(activity: android.content.Context)')
     p.write_text(s)
+
+    p = src/'MainActivity.kt'
+    s = p.read_text().replace('history.takeLast(8).joinToString("\\n")', 'history.takeLast(8).joinToString("\\n").replace("Лана:","LANA:")')
+    p.write_text(s)
+    # Display the fixed Latin brand; preserve Russian speech recognition vocabulary and storage IDs.
+    import re
+    for name in ('MainActivity.kt','LanaWorkspace.kt','LanaUpdater.kt','LanaVoiceKeepAliveService.kt','LanaPresenceView.kt','LanaTypedDialogue.kt'):
+        f = src/name
+        f.write_text(re.sub(r'Лан(?:ой|а|у|ы|е)(?![а-яё])', 'LANA', f.read_text()))
+    resources = out/'app/src/main/res'
+    for f in resources.rglob('*.xml'):
+        f.write_text(re.sub(r'Лан(?:ой|а|у|ы|е)(?![а-яё])', 'LANA', f.read_text()))
+    p = src/'MainActivity.kt'
+    s = p.read_text().replace('.replace("LANA:","LANA:")', r'.replace("\u041b\u0430\u043d\u0430:","LANA:")')
+    p.write_text(s)
