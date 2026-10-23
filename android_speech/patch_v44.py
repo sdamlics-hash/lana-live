@@ -655,5 +655,9 @@ class LanaConnectionCipherTest {
     (xml/'lana_update_paths.xml').write_text('<paths xmlns:android="http://schemas.android.com/apk/res/android"><cache-path name="updates" path="lana-updates/" /></paths>')
     p.write_text(s)
     build=out/'app/build.gradle.kts';build.write_text(build.read_text().replace('versionCode = 8','versionCode = 9').replace('0.6.3-lana-voice-repair','0.6.4-lana-shimmer'))
+    spec = importlib.util.spec_from_file_location('lana_resilience', ROOT/'android_team/patch_resilience.py')
+    resilience = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(resilience)
+    resilience.install(out, ROOT)
     return out
 if __name__=='__main__':make_preview(Path(sys.argv[1]),Path(sys.argv[2]))
