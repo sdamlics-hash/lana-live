@@ -34,4 +34,29 @@ class LanaLocalWorkspaceTest {
         assertNull(LanaLocalWorkspace(empty) { fail("Must not write"); false }.handle("Какая погода"))
         assertTrue(LanaLocalWorkspace(empty) { fail("Must not write"); false }.handle("Заверши задачу 9")!!.contains("нет"))
     }
+    @Test fun extendedCommandsPersistEditsSearchAndRestore() {
+        var saved = empty
+        fun ask(q: String): String? { assertTrue(q, LanaLocalWorkspace.matches(q)); return LanaLocalWorkspace(saved) { saved=it; true }.handle(q) }
+        ask("Лана, пожалуйста, добавь   задачу: Проверить голос")
+        ask("Запомни: Люблю листья")
+        assertTrue(ask("Сводка задач")!!.contains("Незавершённых: 1"))
+        assertTrue(ask("Найди задачу голос")!!.contains("Проверить голос"))
+        ask("Измени задачу 1: Проверить обновление")
+        assertTrue(ask("Прочитай мои задачи")!!.contains("Проверить обновление"))
+        ask("Заверши задачу один")
+        assertTrue(ask("Прочитай выполненные задачи")!!.contains("Проверить обновление"))
+        ask("Верни задачу один")
+        assertTrue(ask("Прочитай мои задачи")!!.contains("Проверить обновление"))
+        ask("Измени заметку 1: Зелёные листья")
+        assertEquals("Зелёные листья", ask("Последняя заметка"))
+        assertTrue(ask("Найди заметку листья")!!.contains("Зелёные листья"))
+        val before=saved
+        assertTrue(ask("Измени заметку 99: Нет")!!.contains("нет"))
+        assertEquals(before,saved)
+    }
+    @Test fun editsDoNotClaimSuccessWhenStorageFails() {
+        val data="{\"tasks\":[],\"notes\":[\"Исходный текст\"]}"
+        assertTrue(LanaLocalWorkspace(data) { false }.handle("Измени заметку 1: Новый текст")!!.contains("Не удалось"))
+        assertFalse(LanaLocalWorkspace.matches("Найди ресторан рядом"))
+    }
 }
