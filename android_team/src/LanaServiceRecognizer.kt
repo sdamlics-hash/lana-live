@@ -1,0 +1,141 @@
+package ai.dreibus.lanalive
+
+import android.Manifest
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+
+/** Owned by a Service, never by a View or Activity. All calls and callbacks use the main looper. */
+internal class LanaServiceRecognizer(private val context: Context) {
+    interface Observer {
+        fun ready(ticket: Long)
+        fun partial(ticket: Long, text: String)
+        fun diagnostic(ticket: Long, text: String)
+        fun result(ticket: Long, text: String, latencyMs: Long?)
+        fun stopped(reason: String)
+    }
+    private val gate = LanaRecognitionLease()
+    private val handler = Handler(Looper.getMainLooper())
+    private val recovery = LanaRecognitionRecovery()
+    private var recognizer: SpeechRecognizer? = null
+    private var observer: Observer? = null
+    private var owner: String? = null
+    private var turn: LanaRecognitionTurn? = null
+    private fun mainThread() { check(Looper.myLooper() == Looper.getMainLooper()) }
+    fun owns(client: String) = gate.owns(client)
+    fun report() = recovery.report()
+    fun attach(client: String, events: Observer) {
+        mainThread()
+        val previous = observer
+        clearAttempt(destroy = true)
+        gate.attach(client); owner = client; observer = events
+        if (previous !== events) previous?.stopped("Голосовой сеанс передан новому экрану")
+    }
+    fun cancel(client: String) {
+        mainThread()
+        if (gate.cancel(client)) clearAttempt(destroy = false)
+    }
+    fun detach(client: String) {
+        mainThread()
+        if (gate.detach(client)) { observer = null; owner = null; clearAttempt(destroy = true) }
+    }
+    fun close(reason: String) {
+        mainThread()
+        val events = observer
+        owner?.let { gate.detach(it) }; owner = null; observer = null
+        clearAttempt(destroy = true)
+        events?.stopped(reason)
+    }
+    private fun clearAttempt(destroy: Boolean) {
+        turn?.finish(); turn = null
+        handler.removeCallbacksAndMessages(null)
+        runCatching { recognizer?.cancel() }
+        if (destroy) { runCatching { recognizer?.destroy() }; recognizer = null }
+    }
+    fun listen(client: String, appTicket: Long) {
+        mainThread()
+        if (!gate.owns(client)) return
+        clearAttempt(destroy = false)
+        val ticket = gate.begin(client) ?: return
+        recovery.reset()
+        attempt(client, ticket, appTicket)
+    }
+    private fun attempt(client: String, ticket: Long, appTicket: Long) {
+        if (!gate.accepts(client,ticket)) return
+        if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            failed(client,ticket,appTicket,9); return
+        }
+        val current = LanaRecognitionTurn(); turn = current
+        var ready = false
+        fun live() = gate.accepts(client,ticket) && current.acceptsEvents()
+        fun error(code: Int) {
+            if (gate.accepts(client,ticket) && current.finish()) failed(client,ticket,appTicket,code)
+        }
+        handler.postDelayed({ if (live() && !ready) error(11) }, LanaRecognitionRecovery.START_TIMEOUT_MS)
+        handler.postDelayed({ if (live()) error(11) }, LanaRecognitionRecovery.TURN_TIMEOUT_MS)
+        try {
+            if (recognizer == null) recognizer = SpeechRecognizer.createSpeechRecognizer(context)
+            recognizer!!.setRecognitionListener(object : RecognitionListener {
+                override fun onReadyForSpeech(params: Bundle?) {
+                    if (!live()) return
+                    ready = true; observer?.ready(appTicket)
+                }
+                override fun onBeginningOfSpeech() {
+                    if (!live()) return
+                    ready = true; current.speechBegan(); observer?.ready(appTicket)
+                }
+                override fun onRmsChanged(rmsdB: Float) {}
+                override fun onBufferReceived(buffer: ByteArray?) {}
+                override fun onEndOfSpeech() {
+                    if (!live() || !current.endOfSpeech(SystemClock.elapsedRealtime())) return
+                    handler.postDelayed({
+                        if (gate.accepts(client,ticket) && current.timeout(SystemClock.elapsedRealtime())) failed(client,ticket,appTicket,11)
+                    }, LanaRecognitionTurn.FINAL_TIMEOUT_MS)
+                }
+                override fun onPartialResults(results: Bundle?) {
+                    if (!live()) return
+                    val preview = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+                    if (preview.isNotBlank()) observer?.partial(appTicket,preview.take(160))
+                }
+                override fun onEvent(eventType: Int, params: Bundle?) {}
+                override fun onError(code: Int) { error(code) }
+                override fun onResults(results: Bundle?) {
+                    if (!live() || !current.finish()) return
+                    val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
+                    if (text.isBlank()) { failed(client,ticket,appTicket,7); return }
+                    if (!gate.finish(client,ticket)) return
+                    handler.removeCallbacksAndMessages(null)
+                    recovery.successfulPhrase()
+                    val latency = current.endedAt?.let { SystemClock.elapsedRealtime() - it }
+                    observer?.result(appTicket,text,latency)
+                }
+            })
+            recognizer!!.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE,"ru-RU")
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS,true)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS,LanaRecognitionTurn.TARGET_SILENCE_MS)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,LanaRecognitionTurn.INCOMPLETE_SILENCE_MS)
+            })
+        } catch (_: Exception) { error(3) }
+    }
+    private fun failed(client: String, ticket: Long, appTicket: Long, code: Int) {
+        if (!gate.accepts(client,ticket)) return
+        val decision = recovery.error(code)
+        clearAttempt(destroy = decision.recreate)
+        if (decision.diagnostic) observer?.diagnostic(appTicket,decision.message)
+        // A diagnostic can cause a client to stop/detach. Never re-enable that request.
+        if (!gate.accepts(client,ticket)) return
+        if (decision.stop) {
+            gate.finish(client,ticket)
+            observer?.stopped(decision.message)
+        } else handler.postDelayed({ if (gate.accepts(client,ticket)) attempt(client,ticket,appTicket) },decision.delayMs)
+    }
+}

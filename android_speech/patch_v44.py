@@ -663,5 +663,9 @@ class LanaConnectionCipherTest {
     continuity = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(continuity)
     continuity.install(out, ROOT)
+    spec = importlib.util.spec_from_file_location('lana_service_voice', ROOT/'android_team/patch_service_voice.py')
+    service_voice = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(service_voice)
+    service_voice.install(out, ROOT)
     return out
 if __name__=='__main__':make_preview(Path(sys.argv[1]),Path(sys.argv[2]))
