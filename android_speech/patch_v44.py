@@ -217,6 +217,11 @@ internal object LanaDeviceClock {
         val text = question.lowercase(Locale.ROOT).replace('ё', 'е')
             .replace(Regex("[.,!?;:]"), " ").replace(Regex("\\s+"), " ").trim()
             .removePrefix("лана ").removePrefix("ладно ").removePrefix("пожалуйста ").removeSuffix(" пожалуйста").trim()
+        val locationSuffix = " и где мы находимся"
+        if (text.endsWith(locationSuffix)) {
+            val calendar = answer(text.removeSuffix(locationSuffix),now,zone) ?: return null
+            return calendar + " Местоположение не определено: у Ланы нет подтверждённых данных геолокации."
+        }
         val parts = text.split(Regex("\\s+и\\s+"))
         fun isDate(value: String) = dateQuestion.matches(value) || value in setOf("сегодня дата", "дата сегодня", "дата", "сегодня число")
         val compoundCalendar =

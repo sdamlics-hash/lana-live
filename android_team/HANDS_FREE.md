@@ -7,3 +7,12 @@ After READY or ERROR the service schedules a fresh recognition turn after 500 ms
 Specialist-team execution and coordinator commands still require the team screen when the Activity is detached; the service says so explicitly and never sends them as ordinary dialogue. This is a known remaining block, not full hands-free feature parity.
 
 There is no automatic microphone restart after process death, force-stop, reboot, task removal or permission failure. No Android SpeechRecognizer implementation can establish a 24/7 guarantee from compilation. Physical Samsung checks remain required: lock during listening/thinking/speech; several successive replies; silence and network loss; STOP from notification; unlock without duplicate dispatch; force-stop/reopen task/note/history persistence and reset of note selection. Emulator smoke checks cover persistence, not physical audio/background behavior.
+
+
+## Samsung 1024 observation and next candidate
+
+The user observed no listening/reply with the screen off on Android 16 / SDK36. Diagnostics showed STOPPED, two recognition errors and code 11. This does not prove an OS kill: the old report merged actual Android error 11 and locally generated startup/final/turn watchdog errors. The next candidate records the origin, service foreground state, hands-free state, CPU wake-lock state and bounded lifecycle events without recording utterances or credentials. The last events remain available if the service disconnects.
+
+A foreground service alone does not keep the CPU awake. The service now holds a non-reference-counted partial wake lock only while the explicit hands-free cycle owns recognition, with a 90-second system timeout renewed every 60 seconds. Every local stop, task removal, service destruction and transfer back to the screen releases it. This addresses a missing mechanism, not a proven Samsung root cause. Physical revalidation remains necessary. Android guidance: https://developer.android.com/develop/background-work/background-tasks/awake
+
+Compound requests for the current date and location now answer the date from tablet clocks and explicitly say location is unavailable, without inventing coordinates. HTTP/authentication, DNS, TLS, timeout and response-format failures have distinct bounded user-facing messages. The avatar is now a native vector-style female portrait with emerald hair, a leaf crown and state-driven animation. Provider credentials and live configuration have not changed; this app does not attach to the current ChatGPT conversation.
