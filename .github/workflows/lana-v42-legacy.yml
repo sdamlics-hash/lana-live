@@ -2,6 +2,7 @@ name: LANA Voice Repair
 on:
   pull_request:
     paths:
+      - 'android_team/**'
       - 'android_workspace/**'
       - 'android_memory/**'
       - 'android_connections/**'

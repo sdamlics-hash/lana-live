@@ -34,12 +34,17 @@ internal object LanaVoiceCommands {
 
         val isWake = normalized == "лана" || normalized == "lana" ||
             normalized == "лана ты тут" ||
+            normalized == "ты тут лана" ||
+            normalized == "ты здесь лана" ||
             normalized == "ладно ты тут" ||
             normalized == "ладно ты здесь" ||
             normalized == "лана ты здесь" ||
             normalized == "лана слушаешь" ||
             normalized == "лана привет"
         if (isWake) return Action.WAKE
+        // Observed Samsung transcript. Narrow local repair only inside an active
+        // conversation; do not turn arbitrary fuzzy names into a wake word.
+        if (activeConversation && normalized in setOf("ты тут вала", "ты тут", "ты здесь")) return Action.WAKE
         if (normalized.contains(Regex("(^|\\s)лана(\\s|$)"))) return Action.ASK
         if (activeConversation) return Action.ASK
         return Action.IGNORE
