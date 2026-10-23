@@ -49,6 +49,15 @@ def install(out: Path, root: Path):
     old = '            action(binder)'
     assert s.count(old) == 1
     s = s.replace(old,config + old)
+    old = '            recognitionBinder?.attach(recognitionOwner,recognitionObserver)'
+    # Recover a service-owned cycle after Activity recreation without silently turning it off.
+    first = s.index(old,s.index('override fun onServiceConnected'))
+    s = s[:first] + s[first:].replace(old,'''            if (recognitionBinder?.attach(recognitionOwner,recognitionObserver) == true) {
+                voiceEnabled = true; conversationActive = true; voiceSession.start(); recognitionPending = true
+            }''',1)
+    old = '            val pending = pendingRuntimeAction; pendingRuntimeAction = null'
+    assert s.count(old) == 1
+    s = s.replace(old, '            recognitionBinder?.let { binder ->\n' + config + '            }\n' + old)
     p.write_text(s)
     p = out/'app/src/main/java/ai/dreibus/lanalive/LanaWorkspace.kt'
     s = p.read_text().replace('fun contextNotes(activity: Activity)', 'fun contextNotes(activity: android.content.Context)')

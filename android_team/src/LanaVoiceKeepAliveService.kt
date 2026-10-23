@@ -120,10 +120,12 @@ class LanaVoiceKeepAliveService : Service() {
             sessionEnded = false
             loopConfig = request; loopVoice = voice; awake = active
         }
-        fun attach(owner: String, events: LanaServiceRecognizer.Observer) {
+        fun attach(owner: String, events: LanaServiceRecognizer.Observer): Boolean {
+            val recovering = loopActive
             if (loopActive) { stopLoop(); engine.detach(loopOwner) }
             engine.attach(owner,events)
-            startupFailure?.let { reason -> startupFailure = null; engine.close(reason) }
+            startupFailure?.let { reason -> startupFailure = null; engine.close(reason); return false }
+            return recovering
         }
         fun listen(owner: String,ticket: Long, events: LanaServiceRecognizer.Observer) {
             if (!engine.owns(owner)) attach(owner,events)
