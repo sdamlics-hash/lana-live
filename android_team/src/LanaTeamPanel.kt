@@ -28,6 +28,10 @@ internal class LanaTeamPanel(private val activity: Activity) {
         var archivedView = drafts.getBoolean("archive", false)
         fun saveFilters() { drafts.edit().putString("query", query).putString("status", selectedStatus).putInt("period", selectedPeriod).putBoolean("oldest", oldestFirst).putBoolean("archive", archivedView).apply() }
         fun copy(value: String) {
+            if (value.length > 100_000) {
+                Toast.makeText(activity, "Слишком много текста для буфера: сузь период или поиск. Текст не обрезан.", Toast.LENGTH_LONG).show()
+                return
+            }
             val clipboard = activity.getSystemService(Activity.CLIPBOARD_SERVICE) as android.content.ClipboardManager
             clipboard.setPrimaryClip(android.content.ClipData.newPlainText("LANA", value))
             Toast.makeText(activity, "Скопировано", Toast.LENGTH_SHORT).show()
