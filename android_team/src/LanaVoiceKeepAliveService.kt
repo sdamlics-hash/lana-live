@@ -44,6 +44,8 @@ class LanaVoiceKeepAliveService : Service() {
     private var runtimeOwner: String? = null
     private var runtimeTicket: Long? = null
     private var runtimeEvents: ((LanaConversationRuntime.Snapshot) -> Unit)? = null
+    private var feedbackVoice: LanaRuntimeVoice? = null
+    private var errorFeedback = false
     private var historyPreferences = "LanaRuntimeHistory"
     private var savedTurn = -1L
     private var visibleHistorySaved = true
@@ -59,6 +61,17 @@ class LanaVoiceKeepAliveService : Service() {
         }
         runCatching { runtimeEvents?.invoke(snapshot.copy(clientTicket=runtimeTicket ?: snapshot.clientTicket,contextSaved=snapshot.contextSaved && visibleHistorySaved)) }
             .onFailure { runtimeEvents = null; runtimeOwner = null }
+        // One local error announcement, never a provider retry or recursive speech fallback.
+        if (snapshot.phase == LanaConversationRuntime.Phase.ERROR && snapshot.answer.isBlank() &&
+            !snapshot.textOnly && !errorFeedback && (runtimeOwner != null || loopActive)) {
+            val voice = feedbackVoice
+            if (voice != null) {
+                errorFeedback = true
+                conversation.say(snapshot.error ?: "Ответ не получен.",
+                    LanaRuntimeVoice(true,false,"","","",voice.rate,voice.historyPreferences),snapshot.clientTicket)
+                return
+            }
+        }
         if (loopActive && snapshot.phase in setOf(LanaConversationRuntime.Phase.READY,LanaConversationRuntime.Phase.ERROR)) resumeLoop()
         if (snapshot.turn > 0 && runtimeOwner == null && !loopActive && !busy()) { removeForeground(); stopSelf() }
     }
@@ -74,7 +87,7 @@ class LanaVoiceKeepAliveService : Service() {
     private fun stopLoop(reason: String = "local_stop") {
         event("loop_stop=" + reason); releaseWake()
         sessionEnded = true; loopActive = false; loopGate.stop(); loopHandler.removeCallbacksAndMessages(null)
-        loopConfig = null; loopVoice = null
+        loopConfig = null; loopVoice = null; feedbackVoice = null
     }
     private fun resumeLoop() {
         if (!loopActive || !foreground || busy()) return
@@ -95,6 +108,7 @@ class LanaVoiceKeepAliveService : Service() {
             override fun stopped(reason: String) { stopLoop("recognizer_stop: " + reason.take(100)); conversation.stop(); removeForeground(); stopSelf() }
             override fun result(ticket: Long, text: String, latencyMs: Long?) {
                 if (!loopActive || !loopGate.accept(ticket)) return
+                errorFeedback = false
                 val config = loopConfig ?: return
                 val voice = loopVoice ?: return
                 val prefs = getSharedPreferences(voice.historyPreferences,MODE_PRIVATE)
@@ -106,7 +120,7 @@ class LanaVoiceKeepAliveService : Service() {
                 when (LanaVoiceCommands.choose(text,awake)) {
                     LanaVoiceCommands.Action.IGNORE -> { resumeLoop(); return }
                     LanaVoiceCommands.Action.STOP -> { awake = false; say("Хорошо. Позови, когда понадоблюсь."); return }
-                    LanaVoiceCommands.Action.WAKE -> { awake = true; say("Да, я здесь! Слушаю тебя."); return }
+                    LanaVoiceCommands.Action.WAKE -> { awake = true; say(LanaGreetings.next()); return }
                     LanaVoiceCommands.Action.ASK -> awake = true
                 }
                 if (LanaLocalWorkspace.matches(text)) {
@@ -142,7 +156,15 @@ class LanaVoiceKeepAliveService : Service() {
         fun configureHandsFree(owner: String, request: LanaRuntimeRequest, voice: LanaRuntimeVoice, active: Boolean) {
             if (!engine.owns(owner) || loopActive) return
             sessionEnded = false
-            loopConfig = request; loopVoice = voice; awake = active
+            val restored = LanaSessionConnection.resolve(request.address,request.token,
+                runCatching { LanaConnectionVault(this@LanaVoiceKeepAliveService).load() }.getOrNull())
+            loopConfig = LanaRuntimeRequest(restored.first,restored.second,request.conversationId,request.question,
+                request.prompt,request.legacy,request.notes)
+            val voiceToken = if (voice.token.isBlank() && voice.address.trim() == restored.first) restored.second else voice.token
+            val restoredVoice = LanaRuntimeVoice(voice.enabled,voice.cloud,voice.address,voiceToken,
+                voice.voiceName,voice.rate,voice.historyPreferences)
+            loopVoice = restoredVoice; feedbackVoice = restoredVoice; awake = active
+            event("connection_configured address=${restored.first.isNotBlank()} credential=${restored.second.isNotBlank()}")
         }
         fun attach(owner: String, events: LanaServiceRecognizer.Observer): Boolean {
             val recovering = loopActive
@@ -166,12 +188,14 @@ class LanaVoiceKeepAliveService : Service() {
         fun ask(owner: String, request: LanaRuntimeRequest, voice: LanaRuntimeVoice, ticket: Long) {
             if (!engine.owns(owner)) return
             historyPreferences = voice.historyPreferences
+            feedbackVoice = voice; errorFeedback = false
             engine.cancel(owner)
             conversation.ask(request,voice,ticket)
         }
         fun say(owner: String, text: String, voice: LanaRuntimeVoice, ticket: Long) {
             if (!engine.owns(owner)) return
             historyPreferences = voice.historyPreferences
+            feedbackVoice = voice; errorFeedback = false
             engine.cancel(owner)
             conversation.say(text,voice,ticket)
         }

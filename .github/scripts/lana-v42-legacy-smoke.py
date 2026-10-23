@@ -67,7 +67,7 @@ assert find(desc='legacy_server_mode').get('checked')=='true'
 status = find(desc='connection_status')
 assert 'OpenAI API — не проверен' in status.get('text', '')
 assert 'История ChatGPT — не подключена' in status.get('text', '')
-assert 'Серверная память Ланы — не проверена' in status.get('text', '')
+assert 'Серверная память LANA — не проверена' in status.get('text', '')
 # Technical controls remain available lower down in this scrollable settings page.
 size=adb('shell','wm','size')
 w,h=map(int,re.findall(r'(\d+)x(\d+)',size)[-1])

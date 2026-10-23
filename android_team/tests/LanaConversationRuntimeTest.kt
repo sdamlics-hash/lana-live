@@ -2,6 +2,44 @@ package ai.dreibus.lanalive
 import org.junit.Assert.*
 import org.junit.Test
 class LanaConversationRuntimeTest {
+    @Test fun tenTurnsPreserveAcceptedContextAcrossRecreationWithoutDuplicateRequests() {
+        val disk = mutableMapOf<String,String>()
+        var ledger = LanaLegacyHistory({ disk[it] },{ key, raw -> disk[key]=raw; true })
+        val transport = Transport(); val speaker = Speaker()
+        val runtime = LanaConversationRuntime(transport,speaker,{ req, answer -> ledger.commit("session",req.question,answer) })
+        repeat(10) { index ->
+            val previous = ledger.snapshot("session")
+            if (index > 0) assertEquals("answer $index",previous.last().content)
+            val turn = index+1
+            runtime.ask(LanaRuntimeRequest("https://example.invalid","secret","id","question $turn","prompt $turn",true,emptyList()),voice(),turn.toLong())
+            val callback = transport.callbacks.last()
+            callback("answer $turn",null); callback("duplicate",null)
+            speaker.started!!(); speaker.complete!!(null)
+            assertEquals(LanaConversationRuntime.Phase.READY,runtime.snapshot.phase)
+            if (turn == 5) ledger = LanaLegacyHistory({ disk[it] },{ key, raw -> disk[key]=raw; true })
+        }
+        assertEquals(10,transport.callbacks.size); assertEquals(10,speaker.calls)
+        val restored = LanaLegacyHistory({ disk[it] },{ _, _ -> true }).snapshot("session")
+        assertEquals(16,restored.size); assertEquals("question 3",restored.first().content)
+        assertEquals("answer 10",restored.last().content)
+    }
+    @Test fun localErrorSpeechNeverRetriesModelAndCanFailWithoutLooping() {
+        val transport=Transport();val speaker=Speaker();val runtime=LanaConversationRuntime(transport,speaker)
+        var announced=false
+        runtime.observe {
+            if (it.phase == LanaConversationRuntime.Phase.ERROR && !announced) {
+                announced=true
+                runtime.say("Ошибка связи",LanaRuntimeVoice(true,false,"","","",1f),it.clientTicket)
+            }
+        }
+        runtime.ask(request(),voice(),1)
+        transport.callbacks.single()(null,"network failure")
+        assertEquals(1,speaker.calls)
+        speaker.complete!!("system voice unavailable")
+        assertEquals(1,transport.callbacks.size); assertEquals(1,speaker.calls)
+        assertEquals(LanaConversationRuntime.Phase.ERROR,runtime.snapshot.phase)
+    }
+
     private class Transport : LanaConversationRuntime.Transport {
         val callbacks = mutableListOf<(String?,String?)->Unit>(); var cancellations = 0
         override fun ask(request: LanaRuntimeRequest, complete: (String?,String?)->Unit): LanaConversationRuntime.Cancel {
