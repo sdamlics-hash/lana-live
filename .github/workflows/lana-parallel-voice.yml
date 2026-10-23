@@ -6,6 +6,7 @@ on:
       - '.github/workflows/lana-parallel-voice.yml'
 permissions:
   contents: read
+  actions: read
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -61,6 +62,13 @@ jobs:
       - name: Kotlin tests and APK
         working-directory: /tmp/lana-parallel
         run: gradle --no-daemon testDebugUnitTest assembleDebug
+      - name: Download installed preview baseline
+        uses: actions/download-artifact@v4
+        with:
+          name: LANA-PARALLEL-VOICE-APK
+          run-id: 39822247039
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: /tmp/lana-installed-baseline
       - name: Verify install identity and signature
         run: |
           BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
@@ -74,6 +82,21 @@ jobs:
           print('Separate package and visible label verified')
           PY
           "$BUILD_TOOLS/apksigner" verify --verbose "$APK"
+          "$BUILD_TOOLS/apksigner" verify --print-certs /tmp/lana-installed-baseline/LANA-VOICE-PREVIEW.apk > /tmp/lana-baseline-cert.txt
+          "$BUILD_TOOLS/apksigner" verify --print-certs "$APK" > /tmp/lana-candidate-cert.txt
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          def certificate(path):
+              text = Path(path).read_text()
+              values = re.findall(r'Signer #\d+ certificate SHA-256 digest: (\w+)', text)
+              if not values:
+                  raise SystemExit('Cannot establish signer identity')
+              return sorted(values)
+          if certificate('/tmp/lana-baseline-cert.txt') != certificate('/tmp/lana-candidate-cert.txt'):
+              raise SystemExit('UPDATE BLOCKED: signing key differs from installed preview. Preserve installed app and recover its original keystore; do not distribute this APK as an update.')
+          print('Installed preview signing certificate matched')
+          PY
           mkdir -p /tmp/lana-delivery
           cp "$APK" /tmp/lana-delivery/LANA-VOICE-PREVIEW.apk
       - uses: actions/upload-artifact@v4
