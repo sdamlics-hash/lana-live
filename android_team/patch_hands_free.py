@@ -9,6 +9,8 @@ def install(out: Path, root: Path):
     manifest.write_text(manifest.read_text().replace('<application', '<uses-permission android:name="android.permission.WAKE_LOCK" /><application',1))
     (src/'LanaGreetings.kt').write_text((root/'android_team/src/LanaGreetings.kt').read_text())
     (out/'app/src/test/java/ai/dreibus/lanalive/LanaGreetingsTest.kt').write_text((root/'android_team/tests/LanaGreetingsTest.kt').read_text())
+    (src/'LanaSessionConnection.kt').write_text((root/'android_team/src/LanaSessionConnection.kt').read_text())
+    (out/'app/src/test/java/ai/dreibus/lanalive/LanaSessionConnectionTest.kt').write_text((root/'android_team/tests/LanaSessionConnectionTest.kt').read_text())
     p = src/'MainActivity.kt'
     s = p.read_text()
     s = s.replace('private var recognitionPending = false', 'private var recognitionPending = false\n    private var screenDetached = false')
