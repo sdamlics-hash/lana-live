@@ -3,8 +3,9 @@ from pathlib import Path
 def install(out: Path, root: Path):
     src = out/'app/src/main/java/ai/dreibus/lanalive'
     tests = out/'app/src/test/java/ai/dreibus/lanalive'
-    for name in ('LanaSpokenText.kt','LanaConversationRuntime.kt','LanaRuntimeTransport.kt','LanaRuntimeSpeaker.kt','LanaVoiceKeepAliveService.kt'):
+    for name in ('LanaDialogueTiming.kt','LanaSpokenText.kt','LanaConversationRuntime.kt','LanaRuntimeTransport.kt','LanaRuntimeSpeaker.kt','LanaVoiceKeepAliveService.kt'):
         (src/name).write_text((root/'android_team/src'/name).read_text())
+    (tests/'LanaDialogueTimingTest.kt').write_text((root/'android_team/tests/LanaDialogueTimingTest.kt').read_text())
     (tests/'LanaSpokenTextTest.kt').write_text((root/'android_team/tests/LanaSpokenTextTest.kt').read_text())
     (tests/'LanaConversationRuntimeTest.kt').write_text((root/'android_team/tests/LanaConversationRuntimeTest.kt').read_text())
     p = src/'MainActivity.kt'; s = p.read_text()
@@ -55,7 +56,7 @@ def install(out: Path, root: Path):
         }
         if (!voiceEnabled || !voiceSession.accepts(snapshot.clientTicket)) return@observer
         if (chatRequestStartedAt > 0L && snapshot.phase in setOf(LanaConversationRuntime.Phase.PREPARING_VOICE,LanaConversationRuntime.Phase.READY,LanaConversationRuntime.Phase.ERROR)) {
-            voiceDiagnostic("Ожидание ответа сервера, мс: " + (android.os.SystemClock.elapsedRealtime() - chatRequestStartedAt))
+            voiceDiagnostic("Запрос и получение ответа, мс: " + (android.os.SystemClock.elapsedRealtime() - chatRequestStartedAt))
             chatRequestStartedAt = 0L
         }
         if (!snapshot.contextSaved) voiceDiagnostic("Не удалось сохранить часть контекста или истории. Восстановление после закрытия не подтверждено.")

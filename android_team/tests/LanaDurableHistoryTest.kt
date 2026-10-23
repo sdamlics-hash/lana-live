@@ -2,6 +2,28 @@ package ai.dreibus.lanalive
 import org.junit.Assert.*
 import org.junit.Test
 class LanaDurableHistoryTest {
+    @Test fun recentTopicReachesWireAfterRestartAndOlderTurnsAreEvictedInPairs() {
+        var disk: String? = null
+        val first = LanaLegacyHistory({ disk }, { _, raw -> disk=raw; true })
+        first.snapshot("same-device-session")
+        repeat(6) { first.commit("same-device-session", "old question $it", "old answer $it") }
+        first.commit("same-device-session", "Предложи занятие на вечер", "Можно почитать книгу.")
+        first.commit("same-device-session", "А если я устал?", "Тогда отдохни и ложись спать.")
+        val restarted = LanaLegacyHistory({ if (it == "same-device-session") disk else null })
+        val question = "А что ты предложила мне перед этим?"
+        val body = LanaChatProtocol.request("id",LanaDialoguePrompt.build(question),emptyList(),true,
+            restarted.snapshot("same-device-session"))
+        val wire = body.getJSONArray("history")
+        assertEquals(12,wire.length())
+        assertEquals("old question 2",wire.getJSONObject(0).getString("content"))
+        assertEquals("user",wire.getJSONObject(10).getString("role"))
+        assertEquals("А если я устал?",wire.getJSONObject(10).getString("content"))
+        assertEquals("assistant",wire.getJSONObject(11).getString("role"))
+        assertEquals("Тогда отдохни и ложись спать.",wire.getJSONObject(11).getString("content"))
+        assertTrue(body.getString("message").endsWith(question))
+        assertTrue(restarted.snapshot("different-session").isEmpty())
+    }
+
     @Test fun acceptedDialogueSurvivesRecreationWithinSameScope() {
         val disk = mutableMapOf<String,String>()
         fun ledger() = LanaLegacyHistory({ disk[it] }, { scope, raw -> disk[scope] = raw; true })

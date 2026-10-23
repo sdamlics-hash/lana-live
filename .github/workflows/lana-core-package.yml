@@ -2,6 +2,12 @@ name: LANA core package validation
 on:
   push:
     branches: ['work/lana-core-resilience']
+  pull_request:
+    paths:
+      - 'android_team/src/LanaDialogueTiming.kt'
+      - 'android_team/src/LanaRuntimeTransport.kt'
+      - 'android_team/tests/LanaDialogueTimingTest.kt'
+      - '.github/workflows/lana-core-package.yml'
   workflow_dispatch:
 permissions:
   contents: read

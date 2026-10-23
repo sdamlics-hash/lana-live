@@ -8,7 +8,7 @@ import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
 /** Bounded worker and durable context are Service-owned. Credentials never enter diagnostics. */
-internal class LanaRuntimeTransport(private val context: Context) : LanaConversationRuntime.Transport {
+internal class LanaRuntimeTransport(private val context: Context, private val diagnostic: (String) -> Unit = {}) : LanaConversationRuntime.Transport {
     private val main = Handler(Looper.getMainLooper())
     private val worker = ThreadPoolExecutor(1,1,30,TimeUnit.SECONDS,ArrayBlockingQueue(2),{ task -> Thread(task,"LanaDialogue").apply { isDaemon = true } })
     private val storage = LanaDialogueStorage(context)
@@ -23,11 +23,16 @@ internal class LanaRuntimeTransport(private val context: Context) : LanaConversa
             val error = LanaLegacyQuota.claim(context)
             if (error != null) { complete(null,error); return LanaConversationRuntime.Cancel {} }
         }
+        val queuedAt = android.os.SystemClock.elapsedRealtime()
         var cancelled = false
         val future = try { worker.submit {
+            val startedAt = android.os.SystemClock.elapsedRealtime()
             val answer = runCatching { LanaChatClient.ask(request.address,request.token,request.conversationId,request.prompt,request.notes,request.legacy,prior) }
+            val finishedAt = android.os.SystemClock.elapsedRealtime()
+            val timing = LanaDialogueTiming(queuedAt,startedAt,finishedAt,prior.size / 2,answer.isSuccess)
             main.post {
                 if (!cancelled) {
+                    runCatching { diagnostic(timing.report()) }
                     if (answer.isSuccess) complete(answer.getOrNull(),null)
                     else {
                         val failure = answer.exceptionOrNull()
