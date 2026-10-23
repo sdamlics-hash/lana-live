@@ -40,10 +40,17 @@ jobs:
           password = os.environ.get('SIGNING_PASSWORD', '')
           if len(password) < 20:
               raise SystemExit('Set secret LANA_SIGNING_PASSWORD to at least 20 characters before running.')
+          class SafeRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, request, fp, code, msg, headers, url):
+                  redirected = super().redirect_request(request, fp, code, msg, headers, url)
+                  if redirected is not None:
+                      redirected.remove_header('Authorization')
+                  return redirected
+          opener = urllib.request.build_opener(SafeRedirect())
           request = urllib.request.Request(
               'https://api.github.com/repos/'+os.environ['GH_REPO']+'/actions/artifacts?name=LANA-PERSISTENT-SIGNING-KEY&per_page=100',
               headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'], 'Accept':'application/vnd.github+json'})
-          with urllib.request.urlopen(request, timeout=30) as response:
+          with opener.open(request, timeout=30) as response:
               artifacts = json.load(response)['artifacts']
           live = [a for a in artifacts if not a['expired']]
           root = pathlib.Path('/tmp/lana-signing')
@@ -53,7 +60,7 @@ jobs:
               artifact = max(live, key=lambda a: a['id'])
               request = urllib.request.Request(artifact['archive_download_url'],
                   headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'], 'Accept':'application/vnd.github+json'})
-              with urllib.request.urlopen(request, timeout=30) as response:
+              with opener.open(request, timeout=30) as response:
                   archive = response.read()
               with zipfile.ZipFile(io.BytesIO(archive)) as z:
                   key.write_bytes(z.read('lana-stable.p12'))
@@ -86,7 +93,7 @@ jobs:
           root = Path('/tmp/lana-parallel')
           p = root/'app/build.gradle.kts'
           source = p.read_text()
-          source = re.sub(r'versionCode\\s*=\\s*[0-9]+', 'versionCode = '+str(1000+int(__import__('os').environ['GITHUB_RUN_NUMBER'])), source)
+          source = re.sub(r'versionCode[ ]*=[ ]*[0-9]+', 'versionCode = '+str(1000+int(__import__('os').environ['GITHUB_RUN_NUMBER'])), source)
           pattern = r'(applicationId\s*=\s*")([^"]+)(")'
           matches = list(re.finditer(pattern, source))
           if len(matches) != 1:
