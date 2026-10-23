@@ -659,5 +659,9 @@ class LanaConnectionCipherTest {
     resilience = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(resilience)
     resilience.install(out, ROOT)
+    spec = importlib.util.spec_from_file_location('lana_continuity', ROOT/'android_team/patch_continuity.py')
+    continuity = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(continuity)
+    continuity.install(out, ROOT)
     return out
 if __name__=='__main__':make_preview(Path(sys.argv[1]),Path(sys.argv[2]))
