@@ -24,7 +24,10 @@ def install(out: Path, root: Path):
         val voice = runtimeVoice()
         speaking = true; cancelRecognition()
         status.text = "Думаю…"
-        withConversationRuntime { it.ask(recognitionOwner,request,voice,voiceSession.current()) }
+        withConversationRuntime {
+            chatRequestStartedAt = android.os.SystemClock.elapsedRealtime()
+            it.ask(recognitionOwner,request,voice,voiceSession.current())
+        }
     }
 
 ''' + s[b:]
@@ -50,6 +53,10 @@ def install(out: Path, root: Path):
             renderHistory()
         }
         if (!voiceEnabled || !voiceSession.accepts(snapshot.clientTicket)) return@observer
+        if (chatRequestStartedAt > 0L && snapshot.phase in setOf(LanaConversationRuntime.Phase.PREPARING_VOICE,LanaConversationRuntime.Phase.READY,LanaConversationRuntime.Phase.ERROR)) {
+            voiceDiagnostic("Ожидание ответа сервера, мс: " + (android.os.SystemClock.elapsedRealtime() - chatRequestStartedAt))
+            chatRequestStartedAt = 0L
+        }
         if (!snapshot.contextSaved) voiceDiagnostic("Не удалось сохранить часть контекста или истории. Восстановление после закрытия не подтверждено.")
         when (snapshot.phase) {
             LanaConversationRuntime.Phase.THINKING -> { speaking = true; status.text = "Думаю…" }
@@ -102,6 +109,7 @@ def install(out: Path, root: Path):
     s=s[:a]+'''    private fun stopCloudVoice() {
         pendingRuntimeAction = null
         recognitionBinder?.stopConversation(recognitionOwner)
+        chatRequestStartedAt = 0L
         speaking = false
         if (voiceEnabled && !isFinishing && !isDestroyed) retryVoice()
     }
