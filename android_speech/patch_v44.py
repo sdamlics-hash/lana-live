@@ -210,13 +210,13 @@ internal object LanaDeviceClock {
         "|какой (?:сейчас |сегодня )?(?:год|месяц|день недели)" +
         "|(?:назови|скажи) (?:сегодняшнюю |текущую )?дату)")
     private val timeQuestion = Regex(
-        "(?:сколько (?:сейчас )?времени|сколько сейчас время|который (?:сейчас )?час" +
+        "(?:сколько (?:сейчас )?(?:времени|время)|который (?:сейчас )?час" +
         "|какое (?:сейчас |текущее )?время|(?:назови|скажи) (?:текущее )?время)")
 
     fun answer(question: String, now: Date = Date(), zone: TimeZone = TimeZone.getDefault()): String? {
         val text = question.lowercase(Locale.ROOT).replace('ё', 'е')
             .replace(Regex("[.,!?;:]"), " ").replace(Regex("\\s+"), " ").trim()
-            .removePrefix("лана ").removePrefix("пожалуйста ").removeSuffix(" пожалуйста").trim()
+            .removePrefix("лана ").removePrefix("ладно ").removePrefix("пожалуйста ").removeSuffix(" пожалуйста").trim()
         val date = dateQuestion.matches(text) ||
             text == "какой сегодня день и какой год какой месяц" ||
             text == "какой сегодня день и какой год и какой месяц"
@@ -274,6 +274,174 @@ class LanaDeviceClockTest {
     }
 }
 ''')
+    s=one(s, '        installVoiceControls()', '''        installVoiceControls()
+        restoreConnection()''')
+    s=one(s, '            voiceSessionToken = secret', '''            try {
+                LanaConnectionVault(this).save(address.trim(), secret)
+                voiceDiagnostic("Адрес и ключ сохранены на устройстве с шифрованием")
+            } catch (_: Exception) {
+                voiceDiagnostic("Не удалось сохранить подключение; оно доступно только до закрытия приложения")
+            }
+            voiceSessionToken = secret''')
+    restore=r'''
+    private fun restoreConnection() {
+        val settings = findViewById<android.widget.LinearLayout>(R.id.workspaceSettings)
+        settings.addView(Button(this).apply {
+            text = "ЗАБЫТЬ СОХРАНЁННОЕ ПОДКЛЮЧЕНИЕ"
+            setOnClickListener {
+                try {
+                    LanaConnectionVault(this@MainActivity).forget()
+                    voiceSessionToken = null
+                    voiceSessionTokenAddress = null
+                    findViewById<EditText>(R.id.coreToken).text.clear()
+                    findViewById<EditText>(R.id.coreServerUrl).text.clear()
+                    voiceDiagnostic("Сохранённое подключение удалено")
+                } catch (_: Exception) {
+                    voiceDiagnostic("Не удалось удалить сохранённое подключение")
+                }
+            }
+        })
+        try {
+            val saved = LanaConnectionVault(this).load() ?: return
+            findViewById<EditText>(R.id.coreServerUrl).setText(saved.first)
+            voiceSessionTokenAddress = saved.first
+            voiceSessionToken = saved.second
+            voiceDiagnostic("Сохранённое подключение загружено; связь ещё не проверена")
+        } catch (_: Exception) {
+            voiceDiagnostic("Не удалось прочитать сохранённый ключ. Введи подключение заново")
+        }
+    }
+
+'''
+    s=one(s, '    private fun appendHistory(line: String) {', restore+'    private fun appendHistory(line: String) {')
+    (src/'LanaConnectionCipher.kt').write_text(r'''package ai.dreibus.lanalive
+
+import javax.crypto.Cipher
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
+
+internal object LanaConnectionCipher {
+    private val aad = "LANA connection v1".toByteArray(Charsets.UTF_8)
+    fun encrypt(value: ByteArray, key: SecretKey): ByteArray {
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, key)
+        cipher.updateAAD(aad)
+        require(cipher.iv.size == 12)
+        return byteArrayOf(1) + cipher.iv + cipher.doFinal(value)
+    }
+    fun decrypt(value: ByteArray, key: SecretKey): ByteArray {
+        require(value.size >= 29 && value[0] == 1.toByte())
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, value.copyOfRange(1, 13)))
+        cipher.updateAAD(aad)
+        return cipher.doFinal(value.copyOfRange(13, value.size))
+    }
+}
+''')
+    (src/'LanaConnectionVault.kt').write_text(r'''package ai.dreibus.lanalive
+
+import android.content.Context
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
+import android.util.AtomicFile
+import java.io.File
+import java.security.KeyStore
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import org.json.JSONObject
+
+/** Encrypted device-only storage; no secrets in preferences, backups or logs. */
+internal class LanaConnectionVault(context: Context) {
+    private val file = AtomicFile(File(context.noBackupFilesDir, "lana-connection.enc"))
+    private val alias = "lana.connection.aes.v1"
+    private fun existingKey(): SecretKey? = KeyStore.getInstance("AndroidKeyStore").run {
+        load(null)
+        getKey(alias, null) as? SecretKey
+    }
+    private fun keyForSave(): SecretKey = existingKey() ?: KeyGenerator.getInstance(
+        KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").run {
+        init(KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setKeySize(256).build())
+        generateKey()
+    }
+    private fun validate(address: String, token: String) {
+        val url = java.net.URL(address)
+        require(url.protocol == "https" && !url.host.isNullOrBlank() && url.userInfo == null &&
+            url.query == null && url.ref == null && token.length in 32..8192 &&
+            token.none { it.isWhitespace() || it.isISOControl() })
+    }
+    fun save(address: String, token: String) {
+        validate(address, token)
+        val plain = JSONObject().put("address", address).put("token", token).toString().toByteArray(Charsets.UTF_8)
+        val encrypted = try { LanaConnectionCipher.encrypt(plain, keyForSave()) } finally { plain.fill(0) }
+        val output = file.startWrite()
+        try {
+            output.write(encrypted)
+            file.finishWrite(output)
+        } catch (error: Exception) {
+            file.failWrite(output)
+            throw error
+        }
+    }
+    fun load(): Pair<String, String>? {
+        val encrypted = try { file.openRead().use { it.readBytes() } }
+            catch (_: java.io.FileNotFoundException) { return null }
+        require(encrypted.size <= 32768)
+        val key = existingKey() ?: throw IllegalStateException("Device key unavailable")
+        val plain = LanaConnectionCipher.decrypt(encrypted, key)
+        return try {
+            val json = JSONObject(String(plain, Charsets.UTF_8))
+            val address = json.getString("address")
+            val token = json.getString("token")
+            validate(address, token)
+            address to token
+        } finally { plain.fill(0) }
+    }
+    fun forget() { file.delete() }
+}
+''')
+    (tests/'LanaConnectionCipherTest.kt').write_text(r'''package ai.dreibus.lanalive
+
+import org.junit.Assert.*
+import org.junit.Test
+import javax.crypto.KeyGenerator
+
+class LanaConnectionCipherTest {
+    private fun key() = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
+    @Test fun savesAndReloadsWithoutPlaintextAndUsesFreshNonce() {
+        val key = key()
+        val plain = "test-server-token-for-storage-check-only".toByteArray()
+        val first = LanaConnectionCipher.encrypt(plain, key)
+        val second = LanaConnectionCipher.encrypt(plain, key)
+        assertFalse(first.contentEquals(second))
+        assertFalse(String(first, Charsets.ISO_8859_1).contains(String(plain)))
+        assertArrayEquals(plain, LanaConnectionCipher.decrypt(first, key))
+        assertArrayEquals(plain, LanaConnectionCipher.decrypt(second, key))
+    }
+    @Test fun alteredCiphertextAndWrongDeviceKeyFailClosed() {
+        val key = key()
+        val encrypted = LanaConnectionCipher.encrypt("test-only".toByteArray(), key)
+        val altered = encrypted.copyOf().apply { this[lastIndex] = (this[lastIndex].toInt() xor 1).toByte() }
+        for ((data, decryptKey) in listOf(altered to key, encrypted to key())) {
+            try { LanaConnectionCipher.decrypt(data, decryptKey); fail("Must reject invalid data") }
+            catch (_: java.security.GeneralSecurityException) { }
+        }
+    }
+    @Test fun truncatedAndUnknownFormatsFailClosed() {
+        for (data in listOf(byteArrayOf(), ByteArray(28), ByteArray(40).apply { this[0] = 2 })) {
+            try { LanaConnectionCipher.decrypt(data, key()); fail("Must reject format") }
+            catch (_: IllegalArgumentException) { }
+        }
+    }
+}
+''')
+    clockTest=tests/'LanaDeviceClockTest.kt'
+    clockTest.write_text(clockTest.read_text().replace('"Который час", at("2026-10-25T02:30:00Z")', '"Ладно сколько время", at("2026-10-25T02:30:00Z")'))
+    workspace=src/'LanaWorkspace.kt'
+    workspace.write_text(one(workspace.read_text(), 'Ключ доступа не сохраняется этим экраном.',
+        'Адрес и ключ сохраняются на этом устройстве с шифрованием после нажатия проверки связи.'))
     p.write_text(s)
     build=out/'app/build.gradle.kts';build.write_text(build.read_text().replace('versionCode = 8','versionCode = 9').replace('0.6.3-lana-voice-repair','0.6.4-lana-shimmer'))
     return out
