@@ -38,6 +38,17 @@ internal class LanaTeamPanel(private val activity: Activity) {
         fun render() {
             panel.removeAllViews()
             panel.addView(label("Лана — координатор команды"))
+            panel.addView(label(LanaCoordinator.summary(journal.records())))
+            for (name in listOf("OpenAI", "Claude", "Manus")) {
+                val card = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL; setPadding(16, 8, 16, 8); setBackgroundColor(Color.rgb(235, 244, 231)) }
+                card.addView(label(if (name == "OpenAI") "OpenAI · API через сервер Ланы" else "$name · не подключён"))
+                if (name == "OpenAI") {
+                    val rows = journal.records()
+                    val latest = (rows.length()-1 downTo 0).map { rows.getJSONObject(it) }.firstOrNull { !it.optBoolean("archived") }
+                    card.addView(label(latest?.let { LanaCoordinator.state(it) + "\n" + it.getString("task") } ?: "Заданий пока нет. Доступность сервера ещё не проверена запросом."))
+                } else card.addView(label("Настоящие задания не отправляются: подключение отсутствует."))
+                panel.addView(card)
+            }
             panel.addView(label("OpenAI: отправка через существующий сервер Ланы. Это API-помощник, не текущий чат ChatGPT. Результат требует проверки.\nClaude: не подключён.\nManus: не подключён."))
             panel.addView(label("Текст задания и выбранные тобой заметки передаются серверу и OpenAI при нажатии кнопки. Ответ не означает выполнения внешних действий."))
             panel.addView(Button(activity).apply {
@@ -196,6 +207,24 @@ internal class LanaTeamPanel(private val activity: Activity) {
                 panel.addView(Button(activity).apply {
                     text = "Скопировать задание и ответ"
                     setOnClickListener { copy(row.getString("task") + "\n\n" + answer) }
+                })
+                if (row.optString("answer").isNotBlank()) panel.addView(Button(activity).apply {
+                    text = "Сохранить ответ в память"
+                    setOnClickListener {
+                        val prefs = activity.getSharedPreferences("lana_workspace_v1", Activity.MODE_PRIVATE)
+                        val message = try { LanaLocalWorkspace(prefs.getString("records", "{\"tasks\":[],\"notes\":[]}")!!) { prefs.edit().putString("records", it).commit() }.handle("Запомни: Ответ API-помощника, " + LanaCoordinator.state(row) + ": " + row.getString("answer")) ?: "Запись не создана" }
+                        catch (_: Exception) { "Не удалось сохранить ответ в память" }
+                        Toast.makeText(activity, message, Toast.LENGTH_LONG).show()
+                    }
+                })
+                panel.addView(Button(activity).apply {
+                    text = "Добавить это задание в мои задачи"
+                    setOnClickListener {
+                        val prefs = activity.getSharedPreferences("lana_workspace_v1", Activity.MODE_PRIVATE)
+                        val message = try { LanaLocalWorkspace(prefs.getString("records", "{\"tasks\":[],\"notes\":[]}")!!) { prefs.edit().putString("records", it).commit() }.handle("Добавь задачу: " + row.getString("task")) ?: "Запись не создана" }
+                        catch (_: Exception) { "Не удалось сохранить задачу" }
+                        Toast.makeText(activity, message, Toast.LENGTH_LONG).show()
+                    }
                 })
                 if (row.getString("status") != "running") panel.addView(Button(activity).apply {
                     text = if (row.optBoolean("archived", false)) "Вернуть из архива" else "Убрать в архив"

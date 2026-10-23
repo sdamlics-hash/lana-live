@@ -1,7 +1,7 @@
 name: LANA Stable Signed Voice
 on:
   push:
-    branches: ['build/lana-stable-first-signing']
+    branches: ['build/lana-stable-first-signing', 'build/lana-coordinator-candidate']
   workflow_dispatch:
     inputs:
       initialize_signing:
@@ -159,6 +159,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish signed in-app update
+        if: github.ref == 'refs/heads/build/lana-stable-first-signing'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}

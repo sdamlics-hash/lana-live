@@ -456,6 +456,29 @@ class LanaConnectionCipherTest {
     workspace.write_text(one(workspace.read_text(), 'Ключ доступа не сохраняется этим экраном.',
         'Адрес и ключ сохраняются на этом устройстве с шифрованием после нажатия проверки связи.'))
     s=one(s, '    private fun askFromLana(question: String) {', '''    private fun askFromLana(question: String) {
+        val coordinatorWords = LanaCoordinator.normalized(question)
+        val coordinatorIntent = coordinatorWords in setOf("статус команды", "сводка команды", "как дела у команды", "что делает команда", "что ждет проверки", "какие ответы ждут проверки", "прочитай последнее задание команды", "последнее задание команды", "прочитай последний ответ команды", "почитай последний ответ команды", "какой последний ответ команды", "сохрани последний ответ команды в память", "добавь задачу из последнего задания команды") || coordinatorWords.startsWith("уточни у команды") || coordinatorWords.startsWith("продолжи с командой")
+        if (coordinatorIntent) {
+            chatRequestStartedAt = 0L
+            try {
+                val records = teamJournal().records()
+                val followUp = LanaCoordinator.followUp(question, records)
+                if (followUp != null) { dispatchVoiceTeamTask(followUp); return }
+                val local = LanaCoordinator.reply(question, records)
+                if (local != null) { speakFromLana(local); return }
+                if (coordinatorWords in setOf("сохрани последний ответ команды в память", "добавь задачу из последнего задания команды")) {
+                    val row = LanaCoordinator.latest(records)
+                    if (row == null) { speakFromLana("Сохранённого ответа команды пока нет."); return }
+                    val prefs = getSharedPreferences("lana_workspace_v1", MODE_PRIVATE)
+                    val command = if (coordinatorWords.startsWith("сохрани")) "Запомни: Ответ API-помощника, " + LanaCoordinator.state(row) + ": " + row.getString("answer") else "Добавь задачу: " + row.getString("task")
+                    val reply = LanaLocalWorkspace(prefs.getString("records", "{\\"tasks\\":[],\\"notes\\":[]}")!!) { prefs.edit().putString("records", it).commit() }.handle(command)
+                    speakFromLana(reply ?: "Запись не создана."); return
+                }
+                speakFromLana("После команды уточнения назови вопрос. Пока ничего не отправлено.")
+            } catch (error: IllegalArgumentException) { speakFromLana(error.message ?: "Не удалось подготовить уточнение.") }
+            catch (_: Exception) { speakFromLana("Не удалось прочитать журнал команды. Записи не изменены.") }
+            return
+        }
         if (LanaLocalWorkspace.matches(question)) {
             val prefs = getSharedPreferences("lana_workspace_v1", MODE_PRIVATE)
             val reply = try {
@@ -549,9 +572,9 @@ class LanaConnectionCipherTest {
 
 '''
     s=one(s, '    private fun appendHistory(line: String) {', teamMethod+'    private fun appendHistory(line: String) {')
-    for name in ('LanaTeamPanel.kt', 'LanaTeamJournal.kt', 'LanaTeamPrompt.kt', 'LanaSelfCheck.kt', 'LanaJournalReport.kt', 'LanaTeamVoice.kt', 'LanaLocalWorkspace.kt', 'LanaPresenceView.kt', 'LanaVoiceKeepAliveService.kt', 'LanaDialoguePrompt.kt', 'LanaTypedDialogue.kt', 'LanaUpdater.kt', 'LanaUpdateManifest.kt'):
+    for name in ('LanaTeamPanel.kt', 'LanaTeamJournal.kt', 'LanaTeamPrompt.kt', 'LanaSelfCheck.kt', 'LanaJournalReport.kt', 'LanaTeamVoice.kt', 'LanaLocalWorkspace.kt', 'LanaPresenceView.kt', 'LanaVoiceKeepAliveService.kt', 'LanaDialoguePrompt.kt', 'LanaTypedDialogue.kt', 'LanaUpdater.kt', 'LanaUpdateManifest.kt', 'LanaCoordinator.kt'):
         shutil.copyfile(ROOT/'android_team/src'/name, src/name)
-    for name in ('LanaTeamJournalTest.kt', 'LanaTeamPromptTest.kt', 'LanaSelfCheckTest.kt', 'LanaJournalReportTest.kt', 'LanaTeamVoiceTest.kt', 'LanaLocalWorkspaceTest.kt', 'LanaDialoguePromptTest.kt', 'LanaUpdateManifestTest.kt'):
+    for name in ('LanaTeamJournalTest.kt', 'LanaTeamPromptTest.kt', 'LanaSelfCheckTest.kt', 'LanaJournalReportTest.kt', 'LanaTeamVoiceTest.kt', 'LanaLocalWorkspaceTest.kt', 'LanaDialoguePromptTest.kt', 'LanaUpdateManifestTest.kt', 'LanaCoordinatorTest.kt'):
         shutil.copyfile(ROOT/'android_team/tests'/name, tests/name)
     ws=workspace.read_text()
     begin=ws.index('        val team = column().apply {')
@@ -653,7 +676,12 @@ class LanaConnectionCipherTest {
     xml=out/'app/src/main/res/xml'
     xml.mkdir(parents=True, exist_ok=True)
     (xml/'lana_update_paths.xml').write_text('<paths xmlns:android="http://schemas.android.com/apk/res/android"><cache-path name="updates" path="lana-updates/" /></paths>')
+    s=s.replace('status.text = "Слух остановлен"', 'voiceDiagnostic("Разговор остановлен пользователем кнопкой")\n                status.text = "Слух остановлен пользователем"')
     p.write_text(s)
     build=out/'app/build.gradle.kts';build.write_text(build.read_text().replace('versionCode = 8','versionCode = 9').replace('0.6.3-lana-voice-repair','0.6.4-lana-shimmer'))
+    spec = importlib.util.spec_from_file_location('lana_resilience', ROOT/'android_team/patch_resilience.py')
+    resilience = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(resilience)
+    resilience.install(out, ROOT)
     return out
 if __name__=='__main__':make_preview(Path(sys.argv[1]),Path(sys.argv[2]))
