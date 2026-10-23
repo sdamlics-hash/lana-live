@@ -15,18 +15,57 @@ internal class LanaTeamPanel(private val activity: Activity) {
         } catch (_: Exception) {
             panel.addView(label("Журнал не прочитан. Исходные записи сохранены; отправка заблокирована.")); return
         }
+        val drafts = activity.getSharedPreferences("lana_team_drafts_v1", Activity.MODE_PRIVATE)
+        var draft = drafts.getString("task", "").orEmpty()
+        var report = drafts.getString("lastCheck", "").orEmpty()
+        val expanded = mutableSetOf<String>()
+        var pageSize = 10
         var sending = false
         var query = ""
         var selectedStatus = ""
+        fun copy(value: String) {
+            val clipboard = activity.getSystemService(Activity.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("LANA", value))
+            Toast.makeText(activity, "Скопировано", Toast.LENGTH_SHORT).show()
+        }
         fun render() {
             panel.removeAllViews()
             panel.addView(label("Лана — координатор команды"))
             panel.addView(label("OpenAI: отправка через существующий сервер Ланы. Это API-помощник, не текущий чат ChatGPT. Результат требует проверки.\nClaude: не подключён.\nManus: не подключён."))
             panel.addView(label("Текст задания и выбранные тобой заметки передаются серверу и OpenAI при нажатии кнопки. Ответ не означает выполнения внешних действий."))
+            panel.addView(Button(activity).apply {
+                text = "Проверить компоненты Ланы"
+                contentDescription = "lana_self_check"
+                setOnClickListener {
+                    val file = java.io.File.createTempFile("lana-check-", ".tmp", activity.cacheDir)
+                    try {
+                        report = LanaSelfCheck.run { value ->
+                            file.writeText(value, Charsets.UTF_8)
+                            file.readText(Charsets.UTF_8)
+                        }
+                    } catch (_: Exception) { report = "ОШИБКА · Не удалось создать тестовый файл" }
+                    finally { file.delete() }
+                    drafts.edit().putString("lastCheck", report).apply()
+                    render()
+                }
+            })
+            if (report.isNotEmpty()) {
+                panel.addView(label(report))
+                panel.addView(Button(activity).apply { text = "Скопировать отчёт проверки"; setOnClickListener { copy(report) } })
+            }
             val input = EditText(activity).apply {
                 hint = "Задание помощнику OpenAI"; minLines = 2
                 setTextColor(Color.rgb(52, 44, 42))
                 filters = arrayOf(android.text.InputFilter.LengthFilter(LanaTeamPrompt.MAX_TASK))
+                setText(draft)
+                addTextChangedListener(object : android.text.TextWatcher {
+                    override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) { }
+                    override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                        draft = s.toString()
+                        drafts.edit().putString("task", draft).apply()
+                    }
+                    override fun afterTextChanged(s: android.text.Editable?) { }
+                })
                 contentDescription = "team_task_input"
             }
             panel.addView(input)
@@ -40,6 +79,8 @@ internal class LanaTeamPanel(private val activity: Activity) {
                         Toast.makeText(activity, "Нужно новое задание от 1 до 1000 символов; повторная отправка заблокирована.", Toast.LENGTH_LONG).show()
                         return@setOnClickListener
                     }
+                    draft = ""
+                    drafts.edit().remove("task").apply()
                     sending = true
                     render()
                     send(LanaTeamPrompt.build(task)) { answer, error ->
@@ -71,7 +112,7 @@ internal class LanaTeamPanel(private val activity: Activity) {
             })
             val records = journal.filtered(query, selectedStatus)
             panel.addView(label("Найдено: " + records.length()))
-            for (i in 0 until records.length()) {
+            for (i in 0 until minOf(records.length(), pageSize)) {
                 val row = records.getJSONObject(i)
                 val state = when (row.getString("status")) {
                     "running" -> "Отправлено, ожидаю ответ"
@@ -81,7 +122,23 @@ internal class LanaTeamPanel(private val activity: Activity) {
                     "interrupted" -> "Сеанс прерван; результат неизвестен, повторной отправки не было"
                     else -> "Ошибка запроса"
                 }
-                panel.addView(label("OpenAI · $state\n" + row.getString("task") + "\n" + row.optString("answer", row.optString("error"))))
+                val id = row.getString("id")
+                val answer = row.optString("answer", row.optString("error"))
+                val timestamp = java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.getDefault()).format(java.util.Date(row.optLong("createdAt")))
+                panel.addView(label("$timestamp · OpenAI · $state\n" + row.getString("task")))
+                val answerView = label(answer).apply {
+                    setTextIsSelectable(true)
+                    if (id !in expanded) { maxLines = 5; ellipsize = android.text.TextUtils.TruncateAt.END }
+                }
+                panel.addView(answerView)
+                panel.addView(Button(activity).apply {
+                    text = if (id in expanded) "Свернуть ответ" else "Показать полный ответ"
+                    setOnClickListener { if (!expanded.add(id)) expanded.remove(id); render() }
+                })
+                panel.addView(Button(activity).apply {
+                    text = "Скопировать задание и ответ"
+                    setOnClickListener { copy(row.getString("task") + "\n\n" + answer) }
+                })
                 if (row.getString("status") in setOf("verified", "rejected")) panel.addView(Button(activity).apply {
                     text = "Вернуть на проверку"
                     contentDescription = "team_review_reopen"
@@ -99,12 +156,24 @@ internal class LanaTeamPanel(private val activity: Activity) {
                     val reason = EditText(activity).apply {
                         hint = "Причина отклонения ответа"
                         filters = arrayOf(android.text.InputFilter.LengthFilter(500))
+                        setText(drafts.getString("reason_" + id, ""))
+                        addTextChangedListener(object : android.text.TextWatcher {
+                            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) { }
+                            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                                drafts.edit().putString("reason_" + id, s.toString()).apply()
+                            }
+                            override fun afterTextChanged(s: android.text.Editable?) { }
+                        })
                     }
                     panel.addView(reason)
                     panel.addView(Button(activity).apply {
                         text = "Отклонить ответ"
                         setOnClickListener {
-                            try { journal.reject(row.getString("id"), reason.text.toString().trim()); render() }
+                            try {
+                                journal.reject(row.getString("id"), reason.text.toString().trim())
+                                drafts.edit().remove("reason_" + id).apply()
+                                render()
+                            }
                             catch (_: Exception) { Toast.makeText(activity, "Укажи причину; отклонение должно сохраниться", Toast.LENGTH_LONG).show() }
                         }
                     })
@@ -123,6 +192,10 @@ internal class LanaTeamPanel(private val activity: Activity) {
                     }
                 })
             }
+            if (records.length() > pageSize) panel.addView(Button(activity).apply {
+                text = "Показать ещё 10 записей"
+                setOnClickListener { pageSize += 10; render() }
+            })
         }
         render()
     }
