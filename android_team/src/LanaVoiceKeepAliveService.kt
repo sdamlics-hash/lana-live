@@ -196,6 +196,9 @@ class LanaVoiceKeepAliveService : Service() {
     private val binder = LocalBinder()
     override fun onCreate() {
         super.onCreate()
+        getSharedPreferences("lana_session_trace",MODE_PRIVATE).getString("events", "").orEmpty()
+            .lineSequence().filter { it.isNotBlank() && it.length <= 180 }.take(24).forEach { trace.add(it) }
+        event("service_created")
         engine = LanaServiceRecognizer(this)
         transport = LanaRuntimeTransport(this); output = LanaRuntimeSpeaker(this)
         conversation = LanaConversationRuntime(transport,output,transport::accepted)
