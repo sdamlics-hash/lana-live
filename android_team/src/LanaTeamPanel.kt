@@ -23,6 +23,7 @@ internal class LanaTeamPanel(private val activity: Activity) {
         var sending = false
         var query = ""
         var selectedStatus = ""
+        var selectedPeriod = 0
         fun copy(value: String) {
             val clipboard = activity.getSystemService(Activity.CLIPBOARD_SERVICE) as android.content.ClipboardManager
             clipboard.setPrimaryClip(android.content.ClipData.newPlainText("LANA", value))
@@ -106,11 +107,19 @@ internal class LanaTeamPanel(private val activity: Activity) {
                 contentDescription = "team_journal_status"
             }
             panel.addView(filter)
+            val periods = listOf("За всё время", "За 24 часа", "За 7 дней", "За 30 дней")
+            val period = Spinner(activity).apply {
+                adapter = ArrayAdapter(activity, android.R.layout.simple_spinner_dropdown_item, periods)
+                setSelection(selectedPeriod)
+            }
+            panel.addView(period)
             panel.addView(Button(activity).apply {
                 text = "Найти в журнале"
-                setOnClickListener { query = search.text.toString(); selectedStatus = statuses[filter.selectedItemPosition].first; render() }
+                setOnClickListener { query = search.text.toString(); selectedStatus = statuses[filter.selectedItemPosition].first; selectedPeriod = period.selectedItemPosition; pageSize = 10; render() }
             })
-            val records = journal.filtered(query, selectedStatus)
+            val days = listOf(0, 1, 7, 30)[selectedPeriod]
+            val since = if (days == 0) 0L else System.currentTimeMillis() - days * 86400000L
+            val records = journal.filtered(query, selectedStatus, since)
             panel.addView(label("Найдено: " + records.length()))
             for (i in 0 until minOf(records.length(), pageSize)) {
                 val row = records.getJSONObject(i)
@@ -152,6 +161,27 @@ internal class LanaTeamPanel(private val activity: Activity) {
                     }
                 })
                 if (row.has("reviewNote")) panel.addView(label("Причина: " + row.getString("reviewNote")))
+                if (row.getString("status") == "rejected") panel.addView(Button(activity).apply {
+                    text = "Подготовить доработку с замечанием"
+                    setOnClickListener {
+                        val nextTask = "Доработай задание: " + row.getString("task") + "\nЗамечание к прошлому ответу: " + row.optString("reviewNote")
+                        if (nextTask.length > LanaTeamPrompt.MAX_TASK) {
+                            copy(nextTask)
+                            Toast.makeText(activity, "Текст скопирован; сократи его до 1000 символов перед отправкой", Toast.LENGTH_LONG).show()
+                        } else {
+                            android.app.AlertDialog.Builder(activity)
+                                .setTitle("Подготовить задание на доработку?")
+                                .setMessage("Исходная запись сохранится. Текст задания и замечание заменят текущий черновик. Отправка — отдельной кнопкой.")
+                                .setNegativeButton("Назад", null)
+                                .setPositiveButton("Подготовить") { _, _ ->
+                                    draft = nextTask
+                                    drafts.edit().putString("task", draft).apply()
+                                    render()
+                                    Toast.makeText(activity, "Черновик доработки готов вверху экрана", Toast.LENGTH_LONG).show()
+                                }.show()
+                        }
+                    }
+                })
                 if (row.getString("status") == "review") {
                     val reason = EditText(activity).apply {
                         hint = "Причина отклонения ответа"

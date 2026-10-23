@@ -4,6 +4,19 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LanaTeamJournalTest {
+    @Test fun timeFilterCombinesWithStatusAndDoesNotRemoveHistory() {
+        val rows = org.json.JSONArray()
+        for ((id, time) in listOf("old" to 100L, "new" to 300L)) {
+            rows.put(org.json.JSONObject().put("id", id).put("task", "Проверка " + id)
+                .put("status", "review").put("createdAt", time).put("answer", "Ответ"))
+        }
+        val journal = LanaTeamJournal(rows.toString()) { true }
+        assertEquals(1, journal.filtered("проверка", "review", 200L).length())
+        assertEquals("new", journal.filtered("", "", 200L).getJSONObject(0).getString("id"))
+        assertEquals(0, journal.filtered("", "rejected", 200L).length())
+        assertEquals(2, journal.records().length())
+    }
+
     @Test fun mistakenConfirmationCanBeReopenedWithoutResendingOrLosingAnswer() {
         var stored = "[]"
         val journal = LanaTeamJournal(stored) { stored = it; true }

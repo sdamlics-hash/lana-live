@@ -25,13 +25,13 @@ internal class LanaTeamJournal(raw: String, private val write: (String) -> Boole
         if (interrupted) check(write(entries.toString())) { "Journal unavailable" }
     }
     fun records() = JSONArray(entries.toString())
-    fun filtered(query: String, status: String): JSONArray {
+    fun filtered(query: String, status: String, since: Long = 0): JSONArray {
         val result = JSONArray()
         val needle = query.trim().lowercase(java.util.Locale.ROOT)
         for (i in entries.length() - 1 downTo 0) {
             val row = entries.getJSONObject(i)
             val text = (row.getString("task") + " " + row.optString("answer") + " " + row.optString("reviewNote")).lowercase(java.util.Locale.ROOT)
-            if ((status.isEmpty() || row.getString("status") == status) && text.contains(needle))
+            if (row.optLong("createdAt") >= since && (status.isEmpty() || row.getString("status") == status) && text.contains(needle))
                 result.put(JSONObject(row.toString()))
         }
         return result
