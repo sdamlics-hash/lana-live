@@ -1,0 +1,150 @@
+name: LANA Stable Signed Voice
+on:
+  workflow_dispatch:
+    inputs:
+      initialize_signing:
+        description: 'Create first persistent signing key (first run only)'
+        type: boolean
+        default: false
+concurrency:
+  group: lana-stable-signing
+  cancel-in-progress: false
+permissions:
+  contents: read
+  actions: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Restore persistent signing key
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SIGNING_PASSWORD: ${{ secrets.LANA_SIGNING_PASSWORD }}
+          INITIALIZE_SIGNING: ${{ inputs.initialize_signing }}
+        run: |
+          python - <<'PY'
+          import json, os, urllib.request, zipfile, io, pathlib, subprocess
+          password = os.environ.get('SIGNING_PASSWORD', '')
+          if len(password) < 20:
+              raise SystemExit('Set secret LANA_SIGNING_PASSWORD to at least 20 characters before running.')
+          request = urllib.request.Request(
+              'https://api.github.com/repos/'+os.environ['GH_REPO']+'/actions/artifacts?name=LANA-PERSISTENT-SIGNING-KEY&per_page=100',
+              headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'], 'Accept':'application/vnd.github+json'})
+          with urllib.request.urlopen(request, timeout=30) as response:
+              artifacts = json.load(response)['artifacts']
+          live = [a for a in artifacts if not a['expired']]
+          root = pathlib.Path('/tmp/lana-signing')
+          root.mkdir(mode=0o700)
+          key = root/'lana-stable.p12'
+          if live:
+              artifact = max(live, key=lambda a: a['id'])
+              request = urllib.request.Request(artifact['archive_download_url'],
+                  headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'], 'Accept':'application/vnd.github+json'})
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  archive = response.read()
+              with zipfile.ZipFile(io.BytesIO(archive)) as z:
+                  key.write_bytes(z.read('lana-stable.p12'))
+          else:
+              if artifacts or os.environ.get('INITIALIZE_SIGNING') != 'true':
+                  raise SystemExit('No usable persistent key. Restore its backup; first initialization requires explicit initialize_signing=true.')
+              subprocess.run(['keytool','-genkeypair','-keystore',str(key),'-storetype','PKCS12',
+                  '-alias','lana-stable','-keyalg','RSA','-keysize','3072','-validity','10000',
+                  '-dname','CN=LANA Stable Signing','-storepass:env','SIGNING_PASSWORD',
+                  '-keypass:env','SIGNING_PASSWORD'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+          key.chmod(0o600)
+          subprocess.run(['keytool','-list','-keystore',str(key),'-storepass:env','SIGNING_PASSWORD'],
+              check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+          print('Persistent encrypted signing key ready; password never printed.')
+          PY
+      - name: Preserve encrypted signing key backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: LANA-PERSISTENT-SIGNING-KEY
+          path: /tmp/lana-signing/lana-stable.p12
+          retention-days: 90
+          if-no-files-found: error
+      - name: Generate isolated voice candidate
+        run: |
+          python android_speech/patch_v44.py LANA_V3_3_ANDROID_APP_SOURCE.zip /tmp/lana-parallel
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          import xml.etree.ElementTree as ET
+          root = Path('/tmp/lana-parallel')
+          p = root/'app/build.gradle.kts'
+          source = p.read_text()
+          source = re.sub(r'versionCode\\s*=\\s*[0-9]+', 'versionCode = '+str(1000+int(__import__('os').environ['GITHUB_RUN_NUMBER'])), source)
+          pattern = r'(applicationId\s*=\s*")([^"]+)(")'
+          matches = list(re.finditer(pattern, source))
+          if len(matches) != 1:
+              raise SystemExit('Expected exactly one applicationId')
+          original = matches[0].group(2)
+          candidate = 'ai.dreibus.lanalive.stablevoice'
+          if original == candidate:
+              raise SystemExit('Candidate must use a distinct application ID')
+          p.write_text(re.sub(pattern, lambda m: m.group(1)+candidate+m.group(3), source))
+          manifest = root/'app/src/main/AndroidManifest.xml'
+          a = '{http://schemas.android.com/apk/res/android}'
+          ET.register_namespace('android', 'http://schemas.android.com/apk/res/android')
+          tree = ET.parse(manifest)
+          app = tree.getroot().find('application')
+          if app is None:
+              raise SystemExit('Application manifest missing')
+          app.set(a+'label', 'Лана — стабильная')
+          for node in tree.iter():
+              authority = node.get(a+'authorities')
+              if authority:
+                  if '${applicationId}' not in authority and original not in authority:
+                      raise SystemExit('Unscoped provider authority requires review')
+                  node.set(a+'authorities', authority.replace(original, candidate))
+          tree.write(manifest, encoding='unicode')
+          print('Separate install identity:', candidate)
+          PY
+      - name: Kotlin tests and APK
+        working-directory: /tmp/lana-parallel
+        run: gradle --no-daemon testDebugUnitTest assembleDebug
+      - name: Verify install identity and signature
+        env:
+          SIGNING_PASSWORD: ${{ secrets.LANA_SIGNING_PASSWORD }}
+        run: |
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          APK=/tmp/lana-parallel/app/build/outputs/apk/debug/app-debug.apk
+          "$BUILD_TOOLS/aapt" dump badging "$APK" > /tmp/lana-badging.txt
+          python - <<'PY'
+          from pathlib import Path
+          data = Path('/tmp/lana-badging.txt').read_text()
+          assert "package: name='ai.dreibus.lanalive.stablevoice'" in data
+          assert "application-label:'Лана — стабильная'" in data
+          print('Separate package and visible label verified')
+          PY
+          "$BUILD_TOOLS/apksigner" sign --ks /tmp/lana-signing/lana-stable.p12 --ks-key-alias lana-stable --ks-pass env:SIGNING_PASSWORD --key-pass env:SIGNING_PASSWORD "$APK"
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK"
+          "$BUILD_TOOLS/apksigner" verify --print-certs "$APK" > /tmp/lana-signed-cert.txt
+          keytool -exportcert -keystore /tmp/lana-signing/lana-stable.p12 -alias lana-stable -storepass:env SIGNING_PASSWORD -file /tmp/lana-signing-cert.der
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          expected = hashlib.sha256(Path('/tmp/lana-signing-cert.der').read_bytes()).hexdigest()
+          assert 'certificate SHA-256 digest: '+expected in Path('/tmp/lana-signed-cert.txt').read_text()
+          print('APK signer matches persistent key')
+          PY
+          mkdir -p /tmp/lana-delivery
+          cp "$APK" /tmp/lana-delivery/LANA-STABLE-VOICE.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LANA-STABLE-VOICE-APK
+          path: /tmp/lana-delivery/LANA-STABLE-VOICE.apk
+          if-no-files-found: error
