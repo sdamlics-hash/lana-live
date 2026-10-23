@@ -23,6 +23,9 @@ internal class LanaServiceRecognizer(private val context: Context) {
     }
     private val gate = LanaRecognitionLease()
     private val handler = Handler(Looper.getMainLooper())
+    private val continuationHandler = Handler(Looper.getMainLooper())
+    private val assembly = LanaSpeechAssembly()
+    private var finalEndedAt: Long? = null
     private val recovery = LanaRecognitionRecovery()
     private var recognizer: SpeechRecognizer? = null
     private var observer: Observer? = null
@@ -35,24 +38,44 @@ internal class LanaServiceRecognizer(private val context: Context) {
     fun attach(client: String, events: Observer) {
         mainThread()
         val previous = observer
+        clearAssembly()
         clearAttempt(destroy = true)
         gate.attach(client); owner = client; observer = events
         if (previous !== events) previous?.stopped("Голосовой сеанс передан новому экрану")
     }
     fun cancel(client: String) {
         mainThread()
-        if (gate.cancel(client)) clearAttempt(destroy = false)
+        if (gate.cancel(client)) { clearAssembly(); clearAttempt(destroy = false) }
     }
     fun detach(client: String) {
         mainThread()
-        if (gate.detach(client)) { observer = null; owner = null; clearAttempt(destroy = true) }
+        if (gate.detach(client)) { clearAssembly(); observer = null; owner = null; clearAttempt(destroy = true) }
     }
     fun close(reason: String) {
         mainThread()
         val events = observer
         owner?.let { gate.detach(it) }; owner = null; observer = null
+        clearAssembly()
         clearAttempt(destroy = true)
         events?.stopped(reason)
+    }
+    private fun clearAssembly() {
+        continuationHandler.removeCallbacksAndMessages(null)
+        assembly.clear(); finalEndedAt = null
+    }
+    private fun deliver(client: String, ticket: Long, appTicket: Long, stopText: String? = null) {
+        if (!gate.finish(client,ticket)) return
+        val text = stopText ?: assembly.take()
+        val latency = finalEndedAt?.let { SystemClock.elapsedRealtime() - it }
+        clearAssembly(); clearAttempt(destroy = false)
+        if (text.isNotBlank()) { recovery.successfulPhrase(); observer?.result(appTicket,text,latency) }
+    }
+    private fun scheduleDelivery(client: String, ticket: Long, appTicket: Long) {
+        continuationHandler.removeCallbacksAndMessages(null)
+        val wait = assembly.remaining(SystemClock.elapsedRealtime()) ?: return
+        continuationHandler.postDelayed({
+            if (gate.accepts(client,ticket) && assembly.ready(SystemClock.elapsedRealtime())) deliver(client,ticket,appTicket)
+        }, wait)
     }
     private fun clearAttempt(destroy: Boolean) {
         turn?.finish(); turn = null
@@ -63,6 +86,7 @@ internal class LanaServiceRecognizer(private val context: Context) {
     fun listen(client: String, appTicket: Long) {
         mainThread()
         if (!gate.owns(client)) return
+        clearAssembly()
         clearAttempt(destroy = false)
         val ticket = gate.begin(client) ?: return
         recovery.reset()
@@ -91,7 +115,9 @@ internal class LanaServiceRecognizer(private val context: Context) {
                 }
                 override fun onBeginningOfSpeech() {
                     if (!live()) return
-                    ready = true; current.speechBegan(); observer?.ready(appTicket)
+                    ready = true; current.speechBegan(); assembly.speechBegan()
+                    continuationHandler.removeCallbacksAndMessages(null)
+                    observer?.ready(appTicket)
                 }
                 override fun onRmsChanged(rmsdB: Float) {}
                 override fun onBufferReceived(buffer: ByteArray?) {}
@@ -104,7 +130,10 @@ internal class LanaServiceRecognizer(private val context: Context) {
                 override fun onPartialResults(results: Bundle?) {
                     if (!live()) return
                     val preview = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
-                    if (preview.isNotBlank()) observer?.partial(appTicket,preview.take(160))
+                    if (preview.isNotBlank()) {
+                        assembly.speechBegan(); continuationHandler.removeCallbacksAndMessages(null)
+                        observer?.partial(appTicket,preview.take(160))
+                    }
                 }
                 override fun onEvent(eventType: Int, params: Bundle?) {}
                 override fun onError(code: Int) { error(code) }
@@ -112,11 +141,19 @@ internal class LanaServiceRecognizer(private val context: Context) {
                     if (!live() || !current.finish()) return
                     val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
                     if (text.isBlank()) { failed(client,ticket,appTicket,7); return }
-                    if (!gate.finish(client,ticket)) return
-                    handler.removeCallbacksAndMessages(null)
-                    recovery.successfulPhrase()
-                    val latency = current.endedAt?.let { SystemClock.elapsedRealtime() - it }
-                    observer?.result(appTicket,text,latency)
+                    if (LanaVoiceCommands.choose(text,true) == LanaVoiceCommands.Action.STOP) {
+                        deliver(client,ticket,appTicket,text); return
+                    }
+                    finalEndedAt = current.endedAt
+                    if (!assembly.segment(text,SystemClock.elapsedRealtime())) {
+                        clearAssembly(); gate.finish(client,ticket); clearAttempt(destroy = false)
+                        observer?.stopped("Фраза слишком длинная. Вопрос не отправлен; раздели его на части."); return
+                    }
+                    observer?.diagnostic(appTicket,"Фрагмент получен; слушаю продолжение перед отправкой")
+                    if (!gate.accepts(client,ticket)) return
+                    clearAttempt(destroy = false)
+                    scheduleDelivery(client,ticket,appTicket)
+                    handler.postDelayed({ if (gate.accepts(client,ticket)) attempt(client,ticket,appTicket) },100L)
                 }
             })
             recognizer!!.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -130,6 +167,19 @@ internal class LanaServiceRecognizer(private val context: Context) {
     }
     private fun failed(client: String, ticket: Long, appTicket: Long, code: Int) {
         if (!gate.accepts(client,ticket)) return
+        if (assembly.hasText) {
+            if (assembly.continuing) {
+                clearAssembly(); gate.finish(client,ticket); clearAttempt(destroy = true)
+                observer?.stopped("Продолжение фразы не распознано. Вопрос не отправлен; повтори его целиком.")
+            } else if (code == 6 || code == 7) {
+                clearAttempt(destroy = false)
+                scheduleDelivery(client,ticket,appTicket)
+            } else {
+                clearAssembly(); gate.finish(client,ticket); clearAttempt(destroy = true)
+                observer?.stopped("Распознавание прервалось. Вопрос не отправлен; повтори его целиком.")
+            }
+            return
+        }
         val decision = recovery.error(code)
         clearAttempt(destroy = decision.recreate)
         if (decision.diagnostic) observer?.diagnostic(appTicket,decision.message)

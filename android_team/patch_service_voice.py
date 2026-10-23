@@ -3,8 +3,9 @@ from pathlib import Path
 def install(out: Path, root: Path):
     src = out/'app/src/main/java/ai/dreibus/lanalive'
     tests = out/'app/src/test/java/ai/dreibus/lanalive'
-    for name in ('LanaServiceRecognizer.kt', 'LanaRecognitionLease.kt', 'LanaVoiceKeepAliveService.kt'):
+    for name in ('LanaSpeechAssembly.kt', 'LanaServiceRecognizer.kt', 'LanaRecognitionLease.kt', 'LanaVoiceKeepAliveService.kt'):
         (src/name).write_text((root/'android_team/src'/name).read_text())
+    (tests/'LanaSpeechAssemblyTest.kt').write_text((root/'android_team/tests/LanaSpeechAssemblyTest.kt').read_text())
     (tests/'LanaRecognitionLeaseTest.kt').write_text((root/'android_team/tests/LanaRecognitionLeaseTest.kt').read_text())
     p = src/'MainActivity.kt'
     s = p.read_text()
