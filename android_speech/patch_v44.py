@@ -456,6 +456,18 @@ class LanaConnectionCipherTest {
     workspace.write_text(one(workspace.read_text(), 'Ключ доступа не сохраняется этим экраном.',
         'Адрес и ключ сохраняются на этом устройстве с шифрованием после нажатия проверки связи.'))
     s=one(s, '    private fun askFromLana(question: String) {', '''    private fun askFromLana(question: String) {
+        if (LanaLocalWorkspace.matches(question)) {
+            val prefs = getSharedPreferences("lana_workspace_v1", MODE_PRIVATE)
+            val reply = try {
+                LanaLocalWorkspace(prefs.getString("records", "{\\"tasks\\":[],\\"notes\\":[]}")!!) {
+                    prefs.edit().putString("records", it).commit()
+                }.handle(question) ?: "Укажи текст заметки или задачи после команды."
+            } catch (_: Exception) { "Не удалось прочитать локальную память. Исходные записи не изменены." }
+            chatRequestStartedAt = 0L
+            voiceDiagnostic("Локальная память: без запроса модели")
+            speakFromLana(reply)
+            return
+        }
         val capability = LanaTeamVoice.localReply(question)
         if (capability != null) { chatRequestStartedAt = 0L; speakFromLana(capability); return }
         if (LanaTeamVoice.wantsLastReply(question)) {
@@ -537,9 +549,9 @@ class LanaConnectionCipherTest {
 
 '''
     s=one(s, '    private fun appendHistory(line: String) {', teamMethod+'    private fun appendHistory(line: String) {')
-    for name in ('LanaTeamPanel.kt', 'LanaTeamJournal.kt', 'LanaTeamPrompt.kt', 'LanaSelfCheck.kt', 'LanaJournalReport.kt', 'LanaTeamVoice.kt'):
+    for name in ('LanaTeamPanel.kt', 'LanaTeamJournal.kt', 'LanaTeamPrompt.kt', 'LanaSelfCheck.kt', 'LanaJournalReport.kt', 'LanaTeamVoice.kt', 'LanaLocalWorkspace.kt', 'LanaPresenceView.kt', 'LanaVoiceKeepAliveService.kt', 'LanaDialoguePrompt.kt'):
         shutil.copyfile(ROOT/'android_team/src'/name, src/name)
-    for name in ('LanaTeamJournalTest.kt', 'LanaTeamPromptTest.kt', 'LanaSelfCheckTest.kt', 'LanaJournalReportTest.kt', 'LanaTeamVoiceTest.kt'):
+    for name in ('LanaTeamJournalTest.kt', 'LanaTeamPromptTest.kt', 'LanaSelfCheckTest.kt', 'LanaJournalReportTest.kt', 'LanaTeamVoiceTest.kt', 'LanaLocalWorkspaceTest.kt', 'LanaDialoguePromptTest.kt'):
         shutil.copyfile(ROOT/'android_team/tests'/name, tests/name)
     ws=workspace.read_text()
     begin=ws.index('        val team = column().apply {')
@@ -549,7 +561,54 @@ class LanaConnectionCipherTest {
             (activity as MainActivity).askTeamTask(prompt, complete)
         }
 '''+ws[end:]
+    ws=ws.replace('if (index == 1 || index == 2) renderRecords(index == 1)',
+        'if (index == 1 || index == 2) { read(); renderRecords(index == 1) }')
     workspace.write_text(ws)
+    s=one(s, '        status = findViewById(R.id.statusText)', '''        status = findViewById(R.id.statusText)
+        val presence = LanaPresenceView(this)
+        (status.parent as? android.widget.LinearLayout)?.let { parent ->
+            parent.addView(presence, parent.indexOfChild(status), android.widget.LinearLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT, (110 * resources.displayMetrics.density).toInt()))
+        }
+        presence.update(status.text.toString())
+        status.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) { }
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { presence.update(s.toString()) }
+            override fun afterTextChanged(s: android.text.Editable?) { }
+        })''')
+    s=one(s, '    private fun startVoice() {', '''    private fun startVoice() {
+        if (SpeechRecognizer.isRecognitionAvailable(this) && getPreferences(MODE_PRIVATE).getBoolean("experimental_background_voice", false)) {
+            try {
+                LanaVoiceKeepAliveService.onStopRequested = {
+                    if (voiceEnabled) findViewById<Button>(R.id.voiceButton).performClick()
+                }
+                ContextCompat.startForegroundService(this, Intent(this, LanaVoiceKeepAliveService::class.java))
+            } catch (_: Exception) { voiceDiagnostic("Фоновый сеанс не запущен; разговор доступен в открытом приложении") }
+        }''')
+    s=one(s, '                status.text = "Слух остановлен"', '''                status.text = "Слух остановлен"
+                stopService(Intent(this, LanaVoiceKeepAliveService::class.java))''')
+    s=one(s, '    override fun onDestroy() {', '''    override fun onDestroy() {
+        LanaVoiceKeepAliveService.onStopRequested = null
+        stopService(Intent(this, LanaVoiceKeepAliveService::class.java))''')
+    ws=workspace.read_text()
+    ws=ws.replace('        addPanel(settings)', '''        settings.addView(CheckBox(activity).apply {
+            text = "Экспериментальный фон разговора: уведомление и STOP"
+            isChecked = activity.getPreferences(Activity.MODE_PRIVATE).getBoolean("experimental_background_voice", false)
+            setOnCheckedChangeListener { _, value ->
+                activity.getPreferences(Activity.MODE_PRIVATE).edit().putBoolean("experimental_background_voice", value).apply()
+                if (!value) activity.stopService(android.content.Intent(activity, LanaVoiceKeepAliveService::class.java))
+                notice("Настройка применяется при следующем запуске разговора. Фон и 24/7 требуют проверки на устройстве.")
+            }
+        })
+        addPanel(settings)''')
+    workspace.write_text(ws)
+    s=one(s, '        val address = findViewById<EditText>(R.id.coreServerUrl).text.toString().trim()\n        val secret = voiceSessionToken', '''        val modelQuestion = try { LanaDialoguePrompt.build(question) }
+        catch (_: IllegalArgumentException) { speakFromLana("Вопрос слишком длинный. Раздели его на несколько реплик."); return }
+        val address = findViewById<EditText>(R.id.coreServerUrl).text.toString().trim()
+        val secret = voiceSessionToken''')
+    s=one(s, 'voiceConversationId, question, chosenNotes, legacyMode, priorTurns)', 'voiceConversationId, modelQuestion, chosenNotes, legacyMode, priorTurns)')
+    manifest=out/'app/src/main/AndroidManifest.xml'
+    manifest.write_text(manifest.read_text().replace('<application', '<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />\n    <application', 1).replace('</application>', '<service android:name=".LanaVoiceKeepAliveService" android:exported="false" android:foregroundServiceType="microphone" />\n    </application>'))
     p.write_text(s)
     build=out/'app/build.gradle.kts';build.write_text(build.read_text().replace('versionCode = 8','versionCode = 9').replace('0.6.3-lana-voice-repair','0.6.4-lana-shimmer'))
     return out

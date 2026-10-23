@@ -47,6 +47,18 @@ internal object LanaSelfCheck {
             try { LanaConnectionCipher.decrypt(damaged, key) } catch (_: java.security.GeneralSecurityException) { rejected = true }
             check(rejected)
         }
+        checkPart("Голосовые заметки и задачи: сохранение и повторное чтение") {
+            var saved = "{\"tasks\":[],\"notes\":[]}"
+            val memory = LanaLocalWorkspace(saved) { saved = roundTrip(it); true }
+            check(memory.handle("Запомни: тестовая заметка")!!.contains("Запомнила"))
+            val restored = LanaLocalWorkspace(saved) { saved = roundTrip(it); true }
+            check(restored.handle("Что ты запомнила")!!.contains("тестовая заметка"))
+        }
+        checkPart("Голосовая команда и ограничения контекста диалога") {
+            check(LanaTeamVoice.task("Передай команде задание: тест") == "тест")
+            check(LanaTeamVoice.task("Можешь передать задание команде?") == null)
+            check(LanaDialoguePrompt.build("я".repeat(1800)).length <= 2400)
+        }
         return results.joinToString("\n") + "\n\nЭто локальные проверки компонентов. Сервер, микрофон, озвучка, AndroidKeyStore и работа с выключенным экраном здесь не проверялись."
     }
 }
