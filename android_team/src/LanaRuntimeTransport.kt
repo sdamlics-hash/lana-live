@@ -29,7 +29,18 @@ internal class LanaRuntimeTransport(private val context: Context) : LanaConversa
             main.post {
                 if (!cancelled) {
                     if (answer.isSuccess) complete(answer.getOrNull(),null)
-                    else complete(null,"Ответ не получен: ошибка связи или формата сервера. Автоматического повтора нет.")
+                    else {
+                        val failure = answer.exceptionOrNull()
+                        val reason = when (failure) {
+                            is LanaChatFailure -> failure.message ?: "Сервер отклонил запрос."
+                            is java.net.SocketTimeoutException -> "Сервер не ответил вовремя."
+                            is java.net.UnknownHostException -> "Адрес сервера не найден. Временный адрес мог измениться."
+                            is javax.net.ssl.SSLException -> "Не удалось подтвердить защищённое соединение с сервером."
+                            is IllegalArgumentException, is org.json.JSONException -> "Настройки запроса или формат ответа сервера несовместимы."
+                            else -> "Связь с сервером прервалась."
+                        }
+                        complete(null,reason + " Автоматического повтора нет.")
+                    }
                 }
             }
         } } catch (_: java.util.concurrent.RejectedExecutionException) {

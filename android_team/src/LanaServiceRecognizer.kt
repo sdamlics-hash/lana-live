@@ -76,11 +76,12 @@ internal class LanaServiceRecognizer(private val context: Context) {
         val current = LanaRecognitionTurn(); turn = current
         var ready = false
         fun live() = gate.accepts(client,ticket) && current.acceptsEvents()
-        fun error(code: Int) {
+        fun error(code: Int, origin: String = "android") {
+            if (live()) observer?.diagnostic(appTicket,"Распознавание: источник=$origin; код=$code")
             if (gate.accepts(client,ticket) && current.finish()) failed(client,ticket,appTicket,code)
         }
-        handler.postDelayed({ if (live() && !ready) error(11) }, LanaRecognitionRecovery.START_TIMEOUT_MS)
-        handler.postDelayed({ if (live()) error(11) }, LanaRecognitionRecovery.TURN_TIMEOUT_MS)
+        handler.postDelayed({ if (live() && !ready) error(11,"start_timeout") }, LanaRecognitionRecovery.START_TIMEOUT_MS)
+        handler.postDelayed({ if (live()) error(11,"turn_timeout") }, LanaRecognitionRecovery.TURN_TIMEOUT_MS)
         try {
             if (recognizer == null) recognizer = SpeechRecognizer.createSpeechRecognizer(context)
             recognizer!!.setRecognitionListener(object : RecognitionListener {
@@ -97,7 +98,7 @@ internal class LanaServiceRecognizer(private val context: Context) {
                 override fun onEndOfSpeech() {
                     if (!live() || !current.endOfSpeech(SystemClock.elapsedRealtime())) return
                     handler.postDelayed({
-                        if (gate.accepts(client,ticket) && current.timeout(SystemClock.elapsedRealtime())) failed(client,ticket,appTicket,11)
+                        if (gate.accepts(client,ticket) && current.timeout(SystemClock.elapsedRealtime())) run { observer?.diagnostic(appTicket,"Распознавание: источник=final_timeout; код=11"); failed(client,ticket,appTicket,11) }
                     }, LanaRecognitionTurn.FINAL_TIMEOUT_MS)
                 }
                 override fun onPartialResults(results: Bundle?) {

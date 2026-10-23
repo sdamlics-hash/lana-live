@@ -77,3 +77,6 @@ for _ in range(5):
 find(text='ПРОВЕРИТЬ СВЯЗЬ С ЯДРОМ')
 tap(desc='workspace_tab_0');find(text='НАША ПЕРЕПИСКА')
 print('V4.2 emulator: explicit legacy choice survives restart; truthful initial connection labels; explicit note selection and reset after restart;  task/note saved across restart, completion, deletion cancel, settings/voice navigation passed')
+
+from pathlib import Path
+Path("/tmp/lana-presence.png").write_bytes(subprocess.check_output(["adb","exec-out","screencap","-p"],timeout=30))

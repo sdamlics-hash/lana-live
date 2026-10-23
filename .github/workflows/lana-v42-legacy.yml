@@ -73,6 +73,11 @@ jobs:
           name: LANA-SHIMMER-CANDIDATE-APK
           path: /tmp/lana-v42/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LANA-PRESENCE-PREVIEW
+          path: /tmp/lana-presence.png
+          if-no-files-found: error
       - name: Prepare public SDK signature verification tool
         run: |
           mkdir -p /tmp/lana-signing-tools

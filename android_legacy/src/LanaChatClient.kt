@@ -4,6 +4,8 @@ import java.io.IOException
 import java.net.URL
 import javax.net.ssl.HttpsURLConnection
 
+internal class LanaChatFailure(message: String) : IOException(message)
+
 /** Exactly one authenticated request in the explicitly selected protocol, with no fallback POST. */
 internal object LanaChatClient {
     fun ask(baseUrl: String, bearerToken: String, conversationId: String, question: String,
@@ -28,8 +30,8 @@ internal object LanaChatClient {
         try {
             conn.outputStream.use { it.write(body) }
             val status = conn.responseCode
-            if (status == 401 || status == 403) throw IOException("Сервер отклонил ключ доступа")
-            if (status != 200) throw IOException("Сервер ИИ недоступен (HTTP $status)")
+            if (status == 401 || status == 403) throw LanaChatFailure("Сервер отклонил ключ доступа. Проверь подключение в настройках.")
+            if (status != 200) throw LanaChatFailure("Сервер ИИ вернул HTTP $status. Ответ не получен.")
             val result = conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
                 val buffer = CharArray(12001)
                 var count = 0
@@ -38,7 +40,7 @@ internal object LanaChatClient {
                     if (n == -1) break
                     count += n
                 }
-                if (count > 12000) throw IOException("Ответ сервера слишком большой")
+                if (count > 12000) throw LanaChatFailure("Ответ сервера превышает допустимый размер.")
                 String(buffer, 0, count)
             }
             return LanaChatProtocol.answer(result, legacyMode)

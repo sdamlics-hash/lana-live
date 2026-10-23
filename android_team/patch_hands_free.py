@@ -4,6 +4,9 @@ def install(out: Path, root: Path):
     src = out/'app/src/main/java/ai/dreibus/lanalive'
     (src/'LanaHandsFreeGate.kt').write_text((root/'android_team/src/LanaHandsFreeGate.kt').read_text())
     (out/'app/src/test/java/ai/dreibus/lanalive/LanaHandsFreeGateTest.kt').write_text((root/'android_team/tests/LanaHandsFreeGateTest.kt').read_text())
+    (src/'LanaSessionTrace.kt').write_text((root/'android_team/src/LanaSessionTrace.kt').read_text())
+    manifest = out/'app/src/main/AndroidManifest.xml'
+    manifest.write_text(manifest.read_text().replace('<application', '<uses-permission android:name="android.permission.WAKE_LOCK" /><application',1))
     p = src/'MainActivity.kt'
     s = p.read_text()
     s = s.replace('private var recognitionPending = false', 'private var recognitionPending = false\n    private var screenDetached = false')
@@ -58,7 +61,19 @@ def install(out: Path, root: Path):
     old = '            val pending = pendingRuntimeAction; pendingRuntimeAction = null'
     assert s.count(old) == 1
     s = s.replace(old, '            recognitionBinder?.let { binder ->\n' + config + '            }\n' + old)
+    s = s.replace('recognitionBinder?.report() ?: "Голосовой сервис не подключён"',
+        'recognitionBinder?.report() ?: ("Голосовой сервис не подключён\\n" + getSharedPreferences("lana_session_trace",MODE_PRIVATE).getString("events", "Нет событий"))')
     p.write_text(s)
+    test = out/'app/src/test/java/ai/dreibus/lanalive/LanaDeviceClockTest.kt'
+    t = test.read_text().replace('class LanaDeviceClockTest {', '''class LanaDeviceClockTest {
+    @Test fun samsungCompoundDateAndLocationUsesClockWithoutInventingLocation() {
+        val reply = LanaDeviceClock.answer("Лана какое сегодня число и где мы находимся",Date.from(Instant.parse("2026-10-23T20:00:00Z")),TimeZone.getTimeZone("Europe/Berlin"))!!
+        assertTrue(reply.contains("23 октября 2026"))
+        assertTrue(reply.contains("Местоположение не определено"))
+        assertNull(LanaDeviceClock.answer("Какая погода и где мы находимся"))
+    }
+''')
+    test.write_text(t)
     p = out/'app/src/main/java/ai/dreibus/lanalive/LanaWorkspace.kt'
     s = p.read_text().replace('fun contextNotes(activity: Activity)', 'fun contextNotes(activity: android.content.Context)')
     p.write_text(s)
