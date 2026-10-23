@@ -217,17 +217,22 @@ internal object LanaDeviceClock {
         val text = question.lowercase(Locale.ROOT).replace('ё', 'е')
             .replace(Regex("[.,!?;:]"), " ").replace(Regex("\\s+"), " ").trim()
             .removePrefix("лана ").removePrefix("ладно ").removePrefix("пожалуйста ").removeSuffix(" пожалуйста").trim()
-        val date = dateQuestion.matches(text) ||
+        val parts = text.split(Regex("\\s+и\\s+"))
+        fun isDate(value: String) = dateQuestion.matches(value) || value in setOf("сегодня дата", "дата сегодня", "дата", "сегодня число")
+        val compoundCalendar =
             text == "какой сегодня день и какой год какой месяц" ||
             text == "какой сегодня день и какой год и какой месяц"
-        val time = timeQuestion.matches(text)
+        if (!compoundCalendar && parts.any { !isDate(it) && !timeQuestion.matches(it) }) return null
+        val date = compoundCalendar || parts.any { isDate(it) }
+        val time = parts.any { timeQuestion.matches(it) }
         // Full matching avoids intercepting historical dates, time zones,
         // weather, reminders, or a question containing additional requests.
         if (!date && !time) return null
-        val pattern = if (date) "EEEE, d MMMM yyyy 'года'" else "HH:mm"
-        val formatted = SimpleDateFormat(pattern, Locale("ru", "RU")).apply { timeZone = zone }.format(now)
-        return if (date) "По часам планшета сегодня $formatted."
-            else "По часам планшета сейчас $formatted."
+        fun format(pattern: String) = SimpleDateFormat(pattern, Locale("ru", "RU")).apply { timeZone = zone }.format(now)
+        val answers = mutableListOf<String>()
+        if (date) answers.add("По часам планшета сегодня " + format("EEEE, d MMMM yyyy 'года'") + ".")
+        if (time) answers.add("По часам планшета сейчас " + format("HH:mm") + ".")
+        return answers.joinToString(" ")
     }
 }
 ''')
@@ -270,6 +275,14 @@ class LanaDeviceClockTest {
         for (question in listOf("Какое сегодня число?", "Какой сейчас год", "Какой сейчас месяц",
             "Лана, скажи дату, пожалуйста")) {
             assertTrue(question, LanaDeviceClock.answer(question, at("2026-10-23T14:00:00Z"), berlin)!!.contains("2026"))
+        }
+    }
+    @Test fun observedShortAndCombinedPhrasesUseOneClockSnapshot() {
+        for (question in listOf("сегодня дата", "Какая сегодня дата и сколько время",
+            "Лана, сколько сейчас времени и какая сегодня дата?")) {
+            val reply = LanaDeviceClock.answer(question, at("2026-10-23T14:55:00Z"), berlin)!!
+            assertTrue(reply.contains("23 октября 2026"))
+            if (question.contains("сколько")) assertTrue(reply.contains("16:55"))
         }
     }
 }
@@ -442,6 +455,48 @@ class LanaConnectionCipherTest {
     workspace=src/'LanaWorkspace.kt'
     workspace.write_text(one(workspace.read_text(), 'Ключ доступа не сохраняется этим экраном.',
         'Адрес и ключ сохраняются на этом устройстве с шифрованием после нажатия проверки связи.'))
+    teamMethod=r'''
+    internal fun askTeamTask(prompt: String, complete: (String?, String?) -> Unit) {
+        val address = findViewById<EditText>(R.id.coreServerUrl).text.toString().trim()
+        val token = voiceSessionToken
+        if (token.isNullOrBlank() || address.isBlank() || voiceSessionTokenAddress != address) {
+            complete(null, "Сначала сохрани подключение в настройках Ланы")
+            return
+        }
+        val legacy = findViewById<android.widget.CheckBox>(R.id.legacyServerMode).isChecked
+        if (legacy) {
+            val limit = LanaLegacyQuota.claim(this)
+            if (limit != null) { complete(null, limit); return }
+        }
+        val selectedNotes = LanaWorkspace.contextNotes()
+        val taskConversation = java.util.UUID.randomUUID().toString()
+        Thread {
+            var answer: String? = null
+            var error: String? = null
+            try { answer = LanaChatClient.ask(address, token, taskConversation, prompt, selectedNotes, legacy) }
+            catch (_: Exception) { error = "Задание не подтверждено: ошибка связи или ответа сервера. Автоматического повтора нет." }
+            val result = answer
+            val failure = error
+            runOnUiThread {
+                if (!isFinishing && !isDestroyed) complete(result, failure)
+            }
+        }.start()
+    }
+
+'''
+    s=one(s, '    private fun appendHistory(line: String) {', teamMethod+'    private fun appendHistory(line: String) {')
+    for name in ('LanaTeamPanel.kt', 'LanaTeamJournal.kt'):
+        shutil.copyfile(ROOT/'android_team/src'/name, src/name)
+    shutil.copyfile(ROOT/'android_team/tests/LanaTeamJournalTest.kt', tests/'LanaTeamJournalTest.kt')
+    ws=workspace.read_text()
+    begin=ws.index('        val team = column().apply {')
+    end=ws.index('        addPanel(team)', begin)
+    ws=ws[:begin]+'''        val team = column()
+        LanaTeamPanel(activity).mount(team) { prompt, complete ->
+            (activity as MainActivity).askTeamTask(prompt, complete)
+        }
+'''+ws[end:]
+    workspace.write_text(ws)
     p.write_text(s)
     build=out/'app/build.gradle.kts';build.write_text(build.read_text().replace('versionCode = 8','versionCode = 9').replace('0.6.3-lana-voice-repair','0.6.4-lana-shimmer'))
     return out
