@@ -667,5 +667,9 @@ class LanaConnectionCipherTest {
     service_voice = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(service_voice)
     service_voice.install(out, ROOT)
+    spec = importlib.util.spec_from_file_location('lana_conversation_runtime', ROOT/'android_team/patch_conversation_runtime.py')
+    conversation_runtime = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(conversation_runtime)
+    conversation_runtime.install(out, ROOT)
     return out
 if __name__=='__main__':make_preview(Path(sys.argv[1]),Path(sys.argv[2]))
