@@ -157,3 +157,5 @@ jobs:
           name: LANA-STABLE-VOICE-APK
           path: /tmp/lana-delivery/LANA-STABLE-VOICE.apk
           if-no-files-found: error
+
+# First stable signing build authorized after repository secret setup.
