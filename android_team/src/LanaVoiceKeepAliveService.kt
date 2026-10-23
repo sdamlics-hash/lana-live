@@ -160,7 +160,10 @@ class LanaVoiceKeepAliveService : Service() {
                 runCatching { LanaConnectionVault(this@LanaVoiceKeepAliveService).load() }.getOrNull())
             loopConfig = LanaRuntimeRequest(restored.first,restored.second,request.conversationId,request.question,
                 request.prompt,request.legacy,request.notes)
-            loopVoice = voice; feedbackVoice = voice; awake = active
+            val voiceToken = if (voice.token.isBlank() && voice.address.trim() == restored.first) restored.second else voice.token
+            val restoredVoice = LanaRuntimeVoice(voice.enabled,voice.cloud,voice.address,voiceToken,
+                voice.voiceName,voice.rate,voice.historyPreferences)
+            loopVoice = restoredVoice; feedbackVoice = restoredVoice; awake = active
             event("connection_configured address=${restored.first.isNotBlank()} credential=${restored.second.isNotBlank()}")
         }
         fun attach(owner: String, events: LanaServiceRecognizer.Observer): Boolean {
