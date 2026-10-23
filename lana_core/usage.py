@@ -16,14 +16,17 @@ class UsageLimitError(RuntimeError):
 
 
 class UsageGate:
-    def __init__(self, db_path, daily_limit=100, conversation_hourly_limit=30, clock=None):
+    def __init__(self, db_path, daily_limit=100, conversation_hourly_limit=30,
+                 global_hourly_limit=40, clock=None):
         self.db_path = str(Path(db_path))
         for label, n in [("daily_limit", daily_limit),
-                         ("conversation_hourly_limit", conversation_hourly_limit)]:
+                         ("conversation_hourly_limit", conversation_hourly_limit),
+                         ("global_hourly_limit", global_hourly_limit)]:
             if type(n) is not int or not 1 <= n <= 10_000:
                 raise ValueError(f"{label} must be an integer between 1 and 10000")
         self.daily_limit = daily_limit
         self.conversation_hourly_limit = conversation_hourly_limit
+        self.global_hourly_limit = global_hourly_limit
         self.clock = clock or time.time
         with self._connection() as con:
             con.execute(
@@ -57,6 +60,8 @@ class UsageGate:
         hour_expires = (int(now // 3600) + 1) * 3600
         quotas = [
             (f"d:{day}", "all", self.daily_limit, day_expires),
+            # A new conversation ID must not reset the hourly protection.
+            (f"h:{hour}", "all", self.global_hourly_limit, hour_expires),
             (f"h:{hour}", conversation_id, self.conversation_hourly_limit, hour_expires),
         ]
         with self._connection() as con:
@@ -84,12 +89,20 @@ class UsageGate:
     def status(self):
         """Only aggregate attempt count; no speech or IDs are exposed."""
         now = float(self.clock())
-        bucket = "d:" + datetime.fromtimestamp(now, timezone.utc).strftime("%Y-%m-%d")
+        utc = datetime.fromtimestamp(now, timezone.utc)
+        bucket = "d:" + utc.strftime("%Y-%m-%d")
+        hour_bucket = "h:" + utc.strftime("%Y-%m-%dT%H")
         with self._connection() as con:
             row = con.execute(
                 "SELECT attempts FROM chat_call_usage WHERE bucket=? AND scope='all'",
                 (bucket,),
             ).fetchone()
+            hour_row = con.execute(
+                "SELECT attempts FROM chat_call_usage WHERE bucket=? AND scope='all'",
+                (hour_bucket,),
+            ).fetchone()
         return {"attempts_today": row[0] if row else 0,
                 "daily_limit": self.daily_limit,
+                "attempts_this_hour": hour_row[0] if hour_row else 0,
+                "global_hourly_limit": self.global_hourly_limit,
                 "note": "Request-count ceiling only; not a monetary spend limit"}
