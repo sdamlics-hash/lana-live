@@ -455,7 +455,59 @@ class LanaConnectionCipherTest {
     workspace=src/'LanaWorkspace.kt'
     workspace.write_text(one(workspace.read_text(), 'Ключ доступа не сохраняется этим экраном.',
         'Адрес и ключ сохраняются на этом устройстве с шифрованием после нажатия проверки связи.'))
+    s=one(s, '    private fun askFromLana(question: String) {', '''    private fun askFromLana(question: String) {
+        val capability = LanaTeamVoice.localReply(question)
+        if (capability != null) { chatRequestStartedAt = 0L; speakFromLana(capability); return }
+        if (LanaTeamVoice.wantsLastReply(question)) {
+            val latest = try {
+                val rows = teamJournal().filtered("", "")
+                (0 until rows.length()).map { rows.getJSONObject(it) }.firstOrNull { it.has("answer") }
+            } catch (_: Exception) { null }
+            chatRequestStartedAt = 0L
+            speakFromLana(latest?.let { "Последний сохранённый ответ команды, требующий твоей оценки: " + it.getString("answer") }
+                ?: "Сохранённого ответа команды пока нет или журнал не удалось прочитать.")
+            return
+        }
+        val teamTask = LanaTeamVoice.task(question)
+        if (teamTask != null) { dispatchVoiceTeamTask(teamTask); return }''')
     teamMethod=r'''
+    private var sharedTeamJournal: LanaTeamJournal? = null
+    internal var onTeamJournalChanged: (() -> Unit)? = null
+    internal fun teamJournal(): LanaTeamJournal {
+        sharedTeamJournal?.let { return it }
+        val prefs = getSharedPreferences("lana_team_journal_v1", MODE_PRIVATE)
+        return LanaTeamJournal(prefs.getString("records", "[]")!!) {
+            prefs.edit().putString("records", it).commit()
+        }.also { sharedTeamJournal = it }
+    }
+    private fun dispatchVoiceTeamTask(task: String) {
+        if (task.length > LanaTeamPrompt.MAX_TASK) {
+            speakFromLana("Задание длиннее тысячи символов. Сократи его или подготовь во вкладке Команда.")
+            return
+        }
+        val journal: LanaTeamJournal
+        val id: String
+        try { journal = teamJournal(); id = journal.begin(task) }
+        catch (_: Exception) {
+            speakFromLana("Не удалось создать новое задание: проверь журнал Команды. Дубликат или параллельная отправка блокируются.")
+            return
+        }
+        onTeamJournalChanged?.invoke()
+        speaking = true
+        chatRequestStartedAt = android.os.SystemClock.elapsedRealtime()
+        status.text = "Передаю задание команде…"
+        voiceDiagnostic("Задание записано; передаю API-помощнику OpenAI")
+        val ticket = voiceSession.current()
+        askTeamTask(LanaTeamPrompt.build(task)) { answer, error ->
+            var reply = answer?.let { "Ответ API-помощника OpenAI: " + it } ?: error ?: "Результат задания неизвестен"
+            try { journal.finish(id, answer, error) }
+            catch (_: Exception) { reply = "Ответ получен, но не удалось сохранить его в журнале. " + reply }
+            onTeamJournalChanged?.invoke()
+            if (voiceSession.accepts(ticket) && voiceEnabled && !isFinishing && !isDestroyed) {
+                speakFromLana(reply)
+            }
+        }
+    }
     internal fun askTeamTask(prompt: String, complete: (String?, String?) -> Unit) {
         val address = findViewById<EditText>(R.id.coreServerUrl).text.toString().trim()
         val token = voiceSessionToken
@@ -485,9 +537,9 @@ class LanaConnectionCipherTest {
 
 '''
     s=one(s, '    private fun appendHistory(line: String) {', teamMethod+'    private fun appendHistory(line: String) {')
-    for name in ('LanaTeamPanel.kt', 'LanaTeamJournal.kt', 'LanaTeamPrompt.kt', 'LanaSelfCheck.kt', 'LanaJournalReport.kt'):
+    for name in ('LanaTeamPanel.kt', 'LanaTeamJournal.kt', 'LanaTeamPrompt.kt', 'LanaSelfCheck.kt', 'LanaJournalReport.kt', 'LanaTeamVoice.kt'):
         shutil.copyfile(ROOT/'android_team/src'/name, src/name)
-    for name in ('LanaTeamJournalTest.kt', 'LanaTeamPromptTest.kt', 'LanaSelfCheckTest.kt', 'LanaJournalReportTest.kt'):
+    for name in ('LanaTeamJournalTest.kt', 'LanaTeamPromptTest.kt', 'LanaSelfCheckTest.kt', 'LanaJournalReportTest.kt', 'LanaTeamVoiceTest.kt'):
         shutil.copyfile(ROOT/'android_team/tests'/name, tests/name)
     ws=workspace.read_text()
     begin=ws.index('        val team = column().apply {')

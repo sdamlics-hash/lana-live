@@ -6,12 +6,11 @@ import android.widget.*
 
 internal class LanaTeamPanel(private val activity: Activity) {
     fun mount(panel: LinearLayout, send: (String, (String?, String?) -> Unit) -> Unit) {
-        val prefs = activity.getSharedPreferences("lana_team_journal_v1", Activity.MODE_PRIVATE)
         fun label(value: String) = TextView(activity).apply {
             text = value; textSize = 16f; setTextColor(Color.rgb(52, 44, 42)); setPadding(12, 12, 12, 12); setTextIsSelectable(true)
         }
         val journal = try {
-            LanaTeamJournal(prefs.getString("records", "[]")!!) { prefs.edit().putString("records", it).commit() }
+            (activity as MainActivity).teamJournal()
         } catch (_: Exception) {
             panel.addView(label("Журнал не прочитан. Исходные записи сохранены; отправка заблокирована.")); return
         }
@@ -295,6 +294,7 @@ internal class LanaTeamPanel(private val activity: Activity) {
                 setOnClickListener { pageSize += 10; render() }
             })
         }
+        (activity as MainActivity).onTeamJournalChanged = { render() }
         render()
     }
 }
