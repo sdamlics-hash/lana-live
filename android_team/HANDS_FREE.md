@@ -1,0 +1,9 @@
+# Screen-off conversation ownership
+
+The existing visible-screen microphone start and foreground-mode opt-in remain required. On Activity.onStop, an enabled foreground session transfers recognition to a service observer. The service routes wake/sleep phrases, local tasks and notes, tablet clock, capability answers, and ordinary dialogue. It saves each user phrase before dispatch and saves accepted answers before playback. Selected note consent is revalidated against the current workspace for each model request.
+
+After READY or ERROR the service schedules a fresh recognition turn after 500 ms. ERROR never retries the previous model request. Recognition recovery remains bounded by the existing recognizer policy. A pure session gate invalidates delayed starts and late or duplicate final results. Returning to the screen transfers recognition back without cancelling a response already in progress. STOP invalidates the loop before cancellation; returning after STOP requires an explicit new start.
+
+Specialist-team execution and coordinator commands still require the team screen when the Activity is detached; the service says so explicitly and never sends them as ordinary dialogue. This is a known remaining block, not full hands-free feature parity.
+
+There is no automatic microphone restart after process death, force-stop, reboot, task removal or permission failure. No Android SpeechRecognizer implementation can establish a 24/7 guarantee from compilation. Physical Samsung checks remain required: lock during listening/thinking/speech; several successive replies; silence and network loss; STOP from notification; unlock without duplicate dispatch; force-stop/reopen task/note/history persistence and reset of note selection. Emulator smoke checks cover persistence, not physical audio/background behavior.

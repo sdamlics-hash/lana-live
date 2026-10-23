@@ -1,0 +1,43 @@
+package ai.dreibus.lanalive
+
+import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
+
+/** Bounded worker and durable context are Service-owned. Credentials never enter diagnostics. */
+internal class LanaRuntimeTransport(private val context: Context) : LanaConversationRuntime.Transport {
+    private val main = Handler(Looper.getMainLooper())
+    private val worker = ThreadPoolExecutor(1,1,30,TimeUnit.SECONDS,ArrayBlockingQueue(2),{ task -> Thread(task,"LanaDialogue").apply { isDaemon = true } })
+    private val storage = LanaDialogueStorage(context)
+    private val history = LanaLegacyHistory({ storage.read(it) },{ scope, raw -> storage.write(scope,raw) })
+    private fun scope(request: LanaRuntimeRequest): String {
+        val fingerprint = java.util.Base64.getEncoder().encodeToString(java.security.MessageDigest.getInstance("SHA-256").digest(request.token.toByteArray(Charsets.UTF_8)))
+        return request.address+"|"+request.conversationId+"|"+request.legacy+"|"+fingerprint
+    }
+    override fun ask(request: LanaRuntimeRequest, complete: (String?, String?) -> Unit): LanaConversationRuntime.Cancel {
+        val prior = if (request.legacy) history.snapshot(scope(request)) else emptyList()
+        if (request.legacy) {
+            val error = LanaLegacyQuota.claim(context)
+            if (error != null) { complete(null,error); return LanaConversationRuntime.Cancel {} }
+        }
+        var cancelled = false
+        val future = try { worker.submit {
+            val answer = runCatching { LanaChatClient.ask(request.address,request.token,request.conversationId,request.prompt,request.notes,request.legacy,prior) }
+            main.post {
+                if (!cancelled) {
+                    if (answer.isSuccess) complete(answer.getOrNull(),null)
+                    else complete(null,"Ответ не получен: ошибка связи или формата сервера. Автоматического повтора нет.")
+                }
+            }
+        } } catch (_: java.util.concurrent.RejectedExecutionException) {
+            complete(null,"Предыдущий запрос ещё завершается. Дождись его остановки и повтори вопрос.")
+            return LanaConversationRuntime.Cancel {}
+        }
+        return LanaConversationRuntime.Cancel { cancelled = true; future.cancel(true) }
+    }
+    fun accepted(request: LanaRuntimeRequest, answer: String): Boolean = !request.legacy || history.commit(scope(request),request.question,answer)
+    fun close() { worker.shutdownNow(); main.removeCallbacksAndMessages(null) }
+}

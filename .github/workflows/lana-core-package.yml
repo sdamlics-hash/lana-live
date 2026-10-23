@@ -1,0 +1,33 @@
+name: LANA core package validation
+on:
+  push:
+    branches: ['work/lana-core-resilience']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Generate integrated application
+        run: python android_speech/patch_v44.py LANA_V3_3_ANDROID_APP_SOURCE.zip /tmp/lana-core-package
+      - name: Kotlin tests and full Android assembly
+        working-directory: /tmp/lana-core-package
+        run: gradle --no-daemon testDebugUnitTest assembleDebug
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: LANA-core-package-test-reports
+          path: /tmp/lana-core-package/app/build/reports/tests/
