@@ -70,10 +70,12 @@ internal class LanaRuntimeSpeaker(private val context: Context) : LanaConversati
     }
     override fun speak(text: String, voice: LanaRuntimeVoice, started: () -> Unit, complete: (String?) -> Unit): LanaConversationRuntime.Cancel {
         cancelOutput()
+        val spoken = LanaSpokenText.clean(text)
+        if (spoken.isBlank()) { complete(null); return LanaConversationRuntime.Cancel {} }
         val id = generation
         done = complete; onStarted = started
         main.postDelayed({ if (generation == id && done != null) finish("Озвучка не завершилась вовремя. Ответ доступен текстом.") },120000)
-        if (voice.cloud) cloud(id,text,voice) else system(id,text,voice)
+        if (voice.cloud) cloud(id,spoken,voice) else system(id,spoken,voice)
         return LanaConversationRuntime.Cancel { if (generation == id) cancelOutput() }
     }
     private fun system(id: Long, text: String, voice: LanaRuntimeVoice) {

@@ -105,6 +105,13 @@ class LanaVoiceKeepAliveService : Service() {
             override fun ready(ticket: Long) { event("service_mic_ready") }
             override fun partial(ticket: Long, text: String) {}
             override fun diagnostic(ticket: Long, text: String) { event("recognizer=" + text.take(140)) }
+            override fun retryPhrase(ticket: Long, message: String) {
+                if (!loopActive || !loopGate.accept(ticket)) return
+                val voice = loopVoice ?: return
+                errorFeedback = false
+                event("incomplete_phrase_not_sent")
+                conversation.say(message,voice,ticket)
+            }
             override fun stopped(reason: String) { stopLoop("recognizer_stop: " + reason.take(100)); conversation.stop(); removeForeground(); stopSelf() }
             override fun result(ticket: Long, text: String, latencyMs: Long?) {
                 if (!loopActive || !loopGate.accept(ticket)) return
