@@ -81,6 +81,7 @@ class ChatService:
             self.db_path,
             daily_limit=int(os.environ.get('LANA_CHAT_DAILY_MAX', '100')),
             conversation_hourly_limit=int(os.environ.get('LANA_CHAT_HOURLY_MAX', '30')),
+            global_hourly_limit=int(os.environ.get('LANA_CHAT_GLOBAL_HOURLY_MAX', '40')),
         )
         self.lock = threading.RLock()
         with self._connect() as con:
