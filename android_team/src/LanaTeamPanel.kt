@@ -8,7 +8,7 @@ internal class LanaTeamPanel(private val activity: Activity) {
     fun mount(panel: LinearLayout, send: (String, (String?, String?) -> Unit) -> Unit) {
         val prefs = activity.getSharedPreferences("lana_team_journal_v1", Activity.MODE_PRIVATE)
         fun label(value: String) = TextView(activity).apply {
-            text = value; textSize = 16f; setTextColor(Color.rgb(52, 44, 42)); setPadding(12, 12, 12, 12)
+            text = value; textSize = 16f; setTextColor(Color.rgb(52, 44, 42)); setPadding(12, 12, 12, 12); setTextIsSelectable(true)
         }
         val journal = try {
             LanaTeamJournal(prefs.getString("records", "[]")!!) { prefs.edit().putString("records", it).commit() }
@@ -21,9 +21,12 @@ internal class LanaTeamPanel(private val activity: Activity) {
         val expanded = mutableSetOf<String>()
         var pageSize = 10
         var sending = false
-        var query = ""
-        var selectedStatus = ""
-        var selectedPeriod = 0
+        var query = drafts.getString("query", "").orEmpty()
+        var selectedStatus = drafts.getString("status", "").orEmpty().takeIf { it in setOf("", "review", "verified", "rejected", "error", "interrupted", "running") } ?: ""
+        var selectedPeriod = drafts.getInt("period", 0).coerceIn(0, 3)
+        var oldestFirst = drafts.getBoolean("oldest", false)
+        var archivedView = drafts.getBoolean("archive", false)
+        fun saveFilters() { drafts.edit().putString("query", query).putString("status", selectedStatus).putInt("period", selectedPeriod).putBoolean("oldest", oldestFirst).putBoolean("archive", archivedView).apply() }
         fun copy(value: String) {
             val clipboard = activity.getSystemService(Activity.CLIPBOARD_SERVICE) as android.content.ClipboardManager
             clipboard.setPrimaryClip(android.content.ClipData.newPlainText("LANA", value))
@@ -38,14 +41,17 @@ internal class LanaTeamPanel(private val activity: Activity) {
                 text = "Проверить компоненты Ланы"
                 contentDescription = "lana_self_check"
                 setOnClickListener {
-                    val file = java.io.File.createTempFile("lana-check-", ".tmp", activity.cacheDir)
+                    var file: java.io.File? = null
                     try {
+                        val checkFile = java.io.File.createTempFile("lana-check-", ".tmp", activity.cacheDir)
+                        file = checkFile
                         report = LanaSelfCheck.run { value ->
-                            file.writeText(value, Charsets.UTF_8)
-                            file.readText(Charsets.UTF_8)
+                            checkFile.writeText(value, Charsets.UTF_8)
+                            checkFile.readText(Charsets.UTF_8)
                         }
                     } catch (_: Exception) { report = "ОШИБКА · Не удалось создать тестовый файл" }
-                    finally { file.delete() }
+                    finally { file?.delete() }
+                    report = java.text.SimpleDateFormat("dd.MM.yyyy HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date()) + "\n" + report
                     drafts.edit().putString("lastCheck", report).apply()
                     render()
                 }
@@ -54,6 +60,8 @@ internal class LanaTeamPanel(private val activity: Activity) {
                 panel.addView(label(report))
                 panel.addView(Button(activity).apply { text = "Скопировать отчёт проверки"; setOnClickListener { copy(report) } })
             }
+            val counter = label("Черновик: ${draft.length}/${LanaTeamPrompt.MAX_TASK} символов · сохраняется на устройстве")
+            panel.addView(counter)
             val input = EditText(activity).apply {
                 hint = "Задание помощнику OpenAI"; minLines = 2
                 setTextColor(Color.rgb(52, 44, 42))
@@ -63,6 +71,7 @@ internal class LanaTeamPanel(private val activity: Activity) {
                     override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) { }
                     override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                         draft = s.toString()
+                        counter.text = "Черновик: ${draft.length}/${LanaTeamPrompt.MAX_TASK} символов · сохраняется на устройстве"
                         drafts.edit().putString("task", draft).apply()
                     }
                     override fun afterTextChanged(s: android.text.Editable?) { }
@@ -71,11 +80,23 @@ internal class LanaTeamPanel(private val activity: Activity) {
             }
             panel.addView(input)
             panel.addView(Button(activity).apply {
+                text = "Очистить черновик"
+                setOnClickListener {
+                    android.app.AlertDialog.Builder(activity).setTitle("Очистить только черновик?")
+                        .setMessage("Задания и ответы в журнале сохранятся.")
+                        .setNegativeButton("Назад", null).setPositiveButton("Очистить") { _, _ ->
+                            draft = ""; drafts.edit().remove("task").apply(); render()
+                        }.show()
+                }
+            })
+            panel.addView(Button(activity).apply {
                 text = if (sending) "Ожидаю результат…" else "Передать задание OpenAI"
                 isEnabled = !sending
                 contentDescription = "team_task_send"
                 setOnClickListener {
                     val task = input.text.toString().trim()
+                    if (task.isBlank()) { Toast.makeText(activity, "Введи задание перед отправкой", Toast.LENGTH_LONG).show(); return@setOnClickListener }
+                    if (journal.records().length() >= 1000) { Toast.makeText(activity, "Достигнут лимит 1000 записей; история сохранена", Toast.LENGTH_LONG).show(); return@setOnClickListener }
                     val id = try { journal.begin(task) } catch (_: Exception) {
                         Toast.makeText(activity, "Нужно новое задание от 1 до 1000 символов; повторная отправка заблокирована.", Toast.LENGTH_LONG).show()
                         return@setOnClickListener
@@ -113,14 +134,37 @@ internal class LanaTeamPanel(private val activity: Activity) {
                 setSelection(selectedPeriod)
             }
             panel.addView(period)
+            val oldest = CheckBox(activity).apply { text = "Сначала старые"; isChecked = oldestFirst }
+            val archive = CheckBox(activity).apply { text = "Показать архив вместо текущих записей"; isChecked = archivedView }
+            panel.addView(oldest); panel.addView(archive)
             panel.addView(Button(activity).apply {
                 text = "Найти в журнале"
-                setOnClickListener { query = search.text.toString(); selectedStatus = statuses[filter.selectedItemPosition].first; selectedPeriod = period.selectedItemPosition; pageSize = 10; render() }
+                setOnClickListener { query = search.text.toString(); selectedStatus = statuses[filter.selectedItemPosition].first; selectedPeriod = period.selectedItemPosition; oldestFirst = oldest.isChecked; archivedView = archive.isChecked; saveFilters(); pageSize = 10; render() }
+            })
+            panel.addView(Button(activity).apply {
+                text = "Сбросить поиск и фильтры"
+                setOnClickListener { query = ""; selectedStatus = ""; selectedPeriod = 0; oldestFirst = false; archivedView = false; pageSize = 10; saveFilters(); render() }
             })
             val days = listOf(0, 1, 7, 30)[selectedPeriod]
             val since = if (days == 0) 0L else System.currentTimeMillis() - days * 86400000L
-            val records = journal.filtered(query, selectedStatus, since)
-            panel.addView(label("Найдено: " + records.length()))
+            val records = journal.filtered(query, selectedStatus, since, oldestFirst, archivedView)
+            panel.addView(label(LanaJournalReport.summary(journal.records())))
+            panel.addView(label("Найдено: ${records.length()} · показано: ${minOf(records.length(), pageSize)} · лимит журнала: 1000"))
+            if (records.length() == 0) panel.addView(label("По этим фильтрам записей нет. Сбрось фильтры или переключи архив; записи не удаляются при поиске."))
+            panel.addView(Button(activity).apply {
+                text = "Скопировать найденные записи"
+                isEnabled = records.length() > 0
+                setOnClickListener { copy(LanaJournalReport.export(records)) }
+            })
+            panel.addView(Button(activity).apply {
+                text = "Скопировать весь журнал, включая архив"
+                isEnabled = journal.records().length() > 0
+                setOnClickListener {
+                    android.app.AlertDialog.Builder(activity).setTitle("Скопировать весь журнал?")
+                        .setMessage("В буфер попадут задания, ответы и замечания, включая архив. Вставляй их только туда, куда хочешь передать эти данные.")
+                        .setNegativeButton("Назад", null).setPositiveButton("Скопировать") { _, _ -> copy(LanaJournalReport.export(journal.records())) }.show()
+                }
+            })
             for (i in 0 until minOf(records.length(), pageSize)) {
                 val row = records.getJSONObject(i)
                 val state = when (row.getString("status")) {
@@ -135,6 +179,8 @@ internal class LanaTeamPanel(private val activity: Activity) {
                 val answer = row.optString("answer", row.optString("error"))
                 val timestamp = java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.getDefault()).format(java.util.Date(row.optLong("createdAt")))
                 panel.addView(label("$timestamp · OpenAI · $state\n" + row.getString("task")))
+                panel.addView(label("ID: $id\n" + LanaJournalReport.duration(row)))
+                if (row.getString("status") == "error" || row.getString("status") == "interrupted") panel.addView(label("Проверь подключение в настройках. Автоматической повторной отправки не было; статус не доказывает выполнение задания."))
                 val answerView = label(answer).apply {
                     setTextIsSelectable(true)
                     if (id !in expanded) { maxLines = 5; ellipsize = android.text.TextUtils.TruncateAt.END }
@@ -148,13 +194,31 @@ internal class LanaTeamPanel(private val activity: Activity) {
                     text = "Скопировать задание и ответ"
                     setOnClickListener { copy(row.getString("task") + "\n\n" + answer) }
                 })
+                if (row.getString("status") != "running") panel.addView(Button(activity).apply {
+                    text = if (row.optBoolean("archived", false)) "Вернуть из архива" else "Убрать в архив"
+                    setOnClickListener {
+                        try { journal.archive(id, !row.optBoolean("archived", false)); render() }
+                        catch (_: Exception) { Toast.makeText(activity, "Архивирование не сохранено", Toast.LENGTH_LONG).show() }
+                    }
+                })
+                if (row.optJSONArray("reviewHistory") != null) panel.addView(Button(activity).apply {
+                    text = "История изменения отметок"
+                    setOnClickListener {
+                        val history = row.getJSONArray("reviewHistory")
+                        val text = (0 until history.length()).joinToString("\n") { index ->
+                            val old = history.getJSONObject(index)
+                            "${index + 1}. ${old.optString("status")}: ${old.optString("note")}"
+                        }
+                        android.app.AlertDialog.Builder(activity).setTitle("Предыдущие отметки").setMessage(text).setPositiveButton("Закрыть", null).show()
+                    }
+                })
                 if (row.getString("status") in setOf("verified", "rejected")) panel.addView(Button(activity).apply {
                     text = "Вернуть на проверку"
                     contentDescription = "team_review_reopen"
                     setOnClickListener {
                         try {
                             journal.reopen(row.getString("id"))
-                            selectedStatus = "review"
+                            selectedStatus = "review"; selectedPeriod = 0; query = ""; saveFilters()
                             render()
                             Toast.makeText(activity, "Ответ возвращён на проверку; повторной отправки нет", Toast.LENGTH_LONG).show()
                         } catch (_: Exception) { Toast.makeText(activity, "Не удалось сохранить изменение отметки", Toast.LENGTH_LONG).show() }

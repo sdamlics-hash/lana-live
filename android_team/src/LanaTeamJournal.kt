@@ -8,7 +8,7 @@ import java.util.UUID
 internal class LanaTeamJournal(raw: String, private val write: (String) -> Boolean) {
     private var entries = JSONArray(raw)
     init {
-        require(entries.length() <= 100)
+        require(raw.length <= 8_000_000 && entries.length() <= 1000)
         val ids = mutableSetOf<String>()
         var interrupted = false
         for (i in 0 until entries.length()) {
@@ -25,16 +25,23 @@ internal class LanaTeamJournal(raw: String, private val write: (String) -> Boole
         if (interrupted) check(write(entries.toString())) { "Journal unavailable" }
     }
     fun records() = JSONArray(entries.toString())
-    fun filtered(query: String, status: String, since: Long = 0): JSONArray {
+    fun filtered(query: String, status: String, since: Long = 0, oldestFirst: Boolean = false, archived: Boolean = false): JSONArray {
         val result = JSONArray()
         val needle = query.trim().lowercase(java.util.Locale.ROOT)
-        for (i in entries.length() - 1 downTo 0) {
+        for (i in if (oldestFirst) (0 until entries.length()) else (entries.length() - 1 downTo 0)) {
             val row = entries.getJSONObject(i)
             val text = (row.getString("task") + " " + row.optString("answer") + " " + row.optString("reviewNote")).lowercase(java.util.Locale.ROOT)
-            if (row.optLong("createdAt") >= since && (status.isEmpty() || row.getString("status") == status) && text.contains(needle))
+            if (row.optBoolean("archived", false) == archived && row.optLong("createdAt") >= since && (status.isEmpty() || row.getString("status") == status) && text.contains(needle))
                 result.put(JSONObject(row.toString()))
         }
         return result
+    }
+    fun archive(id: String, archived: Boolean) {
+        val next = records()
+        val row = (0 until next.length()).map { next.getJSONObject(it) }.single { it.getString("id") == id }
+        check(row.getString("status") != "running")
+        row.put("archived", archived)
+        commit(next)
     }
     fun reject(id: String, reason: String) {
         require(reason.isNotBlank() && reason.length <= 500)
@@ -45,11 +52,12 @@ internal class LanaTeamJournal(raw: String, private val write: (String) -> Boole
         commit(next)
     }
     private fun commit(next: JSONArray) {
+        require(next.toString().length <= 8_000_000)
         check(write(next.toString())) { "Journal unavailable" }
         entries = next
     }
     fun begin(task: String): String {
-        require(task.isNotBlank() && task.length <= 1800 && entries.length() < 100)
+        require(task.isNotBlank() && task.length <= 1800 && entries.length() < 1000)
         for (i in 0 until entries.length()) {
             val row = entries.getJSONObject(i)
             require(row.getString("task") != task) { "Duplicate task" }
@@ -71,6 +79,7 @@ internal class LanaTeamJournal(raw: String, private val write: (String) -> Boole
             require(answer.isNotBlank() && answer.length <= 5000)
             row.put("answer", answer).put("status", "review")
         } else row.put("error", error!!.take(200)).put("status", "error")
+        row.put("finishedAt", System.currentTimeMillis())
         commit(next)
     }
     fun reopen(id: String) {
