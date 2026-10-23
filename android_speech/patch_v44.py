@@ -549,9 +549,9 @@ class LanaConnectionCipherTest {
 
 '''
     s=one(s, '    private fun appendHistory(line: String) {', teamMethod+'    private fun appendHistory(line: String) {')
-    for name in ('LanaTeamPanel.kt', 'LanaTeamJournal.kt', 'LanaTeamPrompt.kt', 'LanaSelfCheck.kt', 'LanaJournalReport.kt', 'LanaTeamVoice.kt', 'LanaLocalWorkspace.kt', 'LanaPresenceView.kt', 'LanaVoiceKeepAliveService.kt', 'LanaDialoguePrompt.kt', 'LanaTypedDialogue.kt'):
+    for name in ('LanaTeamPanel.kt', 'LanaTeamJournal.kt', 'LanaTeamPrompt.kt', 'LanaSelfCheck.kt', 'LanaJournalReport.kt', 'LanaTeamVoice.kt', 'LanaLocalWorkspace.kt', 'LanaPresenceView.kt', 'LanaVoiceKeepAliveService.kt', 'LanaDialoguePrompt.kt', 'LanaTypedDialogue.kt', 'LanaUpdater.kt', 'LanaUpdateManifest.kt'):
         shutil.copyfile(ROOT/'android_team/src'/name, src/name)
-    for name in ('LanaTeamJournalTest.kt', 'LanaTeamPromptTest.kt', 'LanaSelfCheckTest.kt', 'LanaJournalReportTest.kt', 'LanaTeamVoiceTest.kt', 'LanaLocalWorkspaceTest.kt', 'LanaDialoguePromptTest.kt'):
+    for name in ('LanaTeamJournalTest.kt', 'LanaTeamPromptTest.kt', 'LanaSelfCheckTest.kt', 'LanaJournalReportTest.kt', 'LanaTeamVoiceTest.kt', 'LanaLocalWorkspaceTest.kt', 'LanaDialoguePromptTest.kt', 'LanaUpdateManifestTest.kt'):
         shutil.copyfile(ROOT/'android_team/tests'/name, tests/name)
     ws=workspace.read_text()
     begin=ws.index('        val team = column().apply {')
@@ -640,6 +640,19 @@ class LanaConnectionCipherTest {
                 status.text = "Слух остановлен"''')
     manifest=out/'app/src/main/AndroidManifest.xml'
     manifest.write_text(manifest.read_text().replace('<application', '<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />\n    <application', 1).replace('</application>', '<service android:name=".LanaVoiceKeepAliveService" android:exported="false" android:foregroundServiceType="microphone" />\n    </application>'))
+    s=one(s, '    private lateinit var status: TextView', '    private lateinit var status: TextView\n    private lateinit var lanaUpdater: LanaUpdater')
+    s=one(s, '        val presence = LanaPresenceView(this)', '''        lanaUpdater = LanaUpdater(this)
+        lanaUpdater.install(status)
+        val presence = LanaPresenceView(this)''')
+    s=one(s, '    override fun onDestroy() {', '''    override fun onResume() {
+        super.onResume()
+        if (::lanaUpdater.isInitialized) lanaUpdater.resume()
+    }
+    override fun onDestroy() {''')
+    manifest.write_text(manifest.read_text().replace('<application', '<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />\n    <application', 1).replace('</application>', '<provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.updates" android:exported="false" android:grantUriPermissions="true"><meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/lana_update_paths" /></provider>\n    </application>'))
+    xml=out/'app/src/main/res/xml'
+    xml.mkdir(parents=True, exist_ok=True)
+    (xml/'lana_update_paths.xml').write_text('<paths xmlns:android="http://schemas.android.com/apk/res/android"><cache-path name="updates" path="lana-updates/" /></paths>')
     p.write_text(s)
     build=out/'app/build.gradle.kts';build.write_text(build.read_text().replace('versionCode = 8','versionCode = 9').replace('0.6.3-lana-voice-repair','0.6.4-lana-shimmer'))
     return out

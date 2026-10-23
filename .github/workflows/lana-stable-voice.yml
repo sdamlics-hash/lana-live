@@ -12,7 +12,7 @@ concurrency:
   group: lana-stable-signing
   cancel-in-progress: false
 permissions:
-  contents: read
+  contents: write
   actions: read
 jobs:
   build:
@@ -157,5 +157,29 @@ jobs:
           name: LANA-STABLE-VOICE-APK
           path: /tmp/lana-delivery/LANA-STABLE-VOICE.apk
           if-no-files-found: error
+
+      - name: Publish signed in-app update
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          python - <<'PYUPDATE'
+          from pathlib import Path
+          import hashlib, json, os
+          apk = Path('/tmp/lana-delivery/LANA-STABLE-VOICE.apk')
+          version = 1000 + int(os.environ['GITHUB_RUN_NUMBER'])
+          tag = f'lana-stable-{version}'
+          data = {'schema': 1, 'package': 'ai.dreibus.lanalive.stablevoice',
+                  'versionCode': version, 'size': apk.stat().st_size,
+                  'sha256': hashlib.sha256(apk.read_bytes()).hexdigest(),
+                  'apkUrl': f"https://github.com/{os.environ['GH_REPO']}/releases/download/{tag}/LANA-STABLE-VOICE.apk"}
+          Path('/tmp/lana-delivery/lana-update.json').write_text(json.dumps(data, indent=2))
+          PYUPDATE
+          UPDATE_TAG="lana-stable-$((1000 + GITHUB_RUN_NUMBER))"
+          if gh release view "$UPDATE_TAG" >/dev/null 2>&1; then
+            gh release upload "$UPDATE_TAG" /tmp/lana-delivery/LANA-STABLE-VOICE.apk /tmp/lana-delivery/lana-update.json --clobber
+          else
+            gh release create "$UPDATE_TAG" /tmp/lana-delivery/LANA-STABLE-VOICE.apk /tmp/lana-delivery/lana-update.json --target "$GITHUB_SHA" --title "Лана — стабильная $((1000 + GITHUB_RUN_NUMBER))" --notes "Подписанное обновление той же Ланы. Устанавливается поверх текущего приложения. Системное подтверждение установки Android остаётся обязательным." --latest
+          fi
 
 # First stable signing build authorized after repository secret setup.
