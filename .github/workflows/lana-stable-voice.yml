@@ -1,5 +1,7 @@
 name: LANA Stable Signed Voice
 on:
+  push:
+    branches: ['build/lana-stable-first-signing']
   workflow_dispatch:
     inputs:
       initialize_signing:
@@ -33,7 +35,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           SIGNING_PASSWORD: ${{ secrets.LANA_SIGNING_PASSWORD }}
-          INITIALIZE_SIGNING: ${{ inputs.initialize_signing }}
+          INITIALIZE_SIGNING: ${{ github.event_name == 'push' && github.ref == 'refs/heads/build/lana-stable-first-signing' && 'true' || inputs.initialize_signing }}
         run: |
           python - <<'PY'
           import json, os, urllib.request, zipfile, io, pathlib, subprocess
