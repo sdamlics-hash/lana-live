@@ -106,7 +106,7 @@ class LanaVoiceKeepAliveService : Service() {
                 when (LanaVoiceCommands.choose(text,awake)) {
                     LanaVoiceCommands.Action.IGNORE -> { resumeLoop(); return }
                     LanaVoiceCommands.Action.STOP -> { awake = false; say("Хорошо. Позови, когда понадоблюсь."); return }
-                    LanaVoiceCommands.Action.WAKE -> { awake = true; say("Да, я здесь! Слушаю тебя."); return }
+                    LanaVoiceCommands.Action.WAKE -> { awake = true; say(LanaGreetings.next()); return }
                     LanaVoiceCommands.Action.ASK -> awake = true
                 }
                 if (LanaLocalWorkspace.matches(text)) {

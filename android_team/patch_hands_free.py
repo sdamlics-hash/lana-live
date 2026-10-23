@@ -7,6 +7,8 @@ def install(out: Path, root: Path):
     (src/'LanaSessionTrace.kt').write_text((root/'android_team/src/LanaSessionTrace.kt').read_text())
     manifest = out/'app/src/main/AndroidManifest.xml'
     manifest.write_text(manifest.read_text().replace('<application', '<uses-permission android:name="android.permission.WAKE_LOCK" /><application',1))
+    (src/'LanaGreetings.kt').write_text((root/'android_team/src/LanaGreetings.kt').read_text())
+    (out/'app/src/test/java/ai/dreibus/lanalive/LanaGreetingsTest.kt').write_text((root/'android_team/tests/LanaGreetingsTest.kt').read_text())
     p = src/'MainActivity.kt'
     s = p.read_text()
     s = s.replace('private var recognitionPending = false', 'private var recognitionPending = false\n    private var screenDetached = false')
@@ -63,6 +65,7 @@ def install(out: Path, root: Path):
     s = s.replace(old, '            recognitionBinder?.let { binder ->\n' + config + '            }\n' + old)
     s = s.replace('recognitionBinder?.report() ?: "Голосовой сервис не подключён"',
         'recognitionBinder?.report() ?: ("Голосовой сервис не подключён\\n" + getSharedPreferences("lana_session_trace",MODE_PRIVATE).getString("events", "Нет событий"))')
+    s = s.replace('speakFromLana("Да, я здесь! Слушаю тебя.")', 'speakFromLana(LanaGreetings.next())')
     p.write_text(s)
     test = out/'app/src/test/java/ai/dreibus/lanalive/LanaDeviceClockTest.kt'
     t = test.read_text().replace('class LanaDeviceClockTest {', '''class LanaDeviceClockTest {

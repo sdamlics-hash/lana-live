@@ -34,6 +34,8 @@ internal object LanaVoiceCommands {
 
         val isWake = normalized == "лана" ||
             normalized == "лана ты тут" ||
+            normalized == "ладно ты тут" ||
+            normalized == "ладно ты здесь" ||
             normalized == "лана ты здесь" ||
             normalized == "лана слушаешь" ||
             normalized == "лана привет"
