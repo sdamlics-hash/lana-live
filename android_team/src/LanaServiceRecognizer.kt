@@ -19,12 +19,14 @@ internal class LanaServiceRecognizer(private val context: Context) {
         fun partial(ticket: Long, text: String)
         fun diagnostic(ticket: Long, text: String)
         fun result(ticket: Long, text: String, latencyMs: Long?)
+        fun retryPhrase(ticket: Long, message: String)
         fun stopped(reason: String)
     }
     private val gate = LanaRecognitionLease()
     private val handler = Handler(Looper.getMainLooper())
     private val continuationHandler = Handler(Looper.getMainLooper())
     private val assembly = LanaSpeechAssembly()
+    private val phraseRecovery = LanaPhraseRecovery()
     private var finalEndedAt: Long? = null
     private val recovery = LanaRecognitionRecovery()
     private var recognizer: SpeechRecognizer? = null
@@ -40,6 +42,7 @@ internal class LanaServiceRecognizer(private val context: Context) {
         val previous = observer
         clearAssembly()
         clearAttempt(destroy = true)
+        phraseRecovery.accepted()
         gate.attach(client); owner = client; observer = events
         if (previous !== events) previous?.stopped("Голосовой сеанс передан новому экрану")
     }
@@ -68,7 +71,7 @@ internal class LanaServiceRecognizer(private val context: Context) {
         val text = stopText ?: assembly.take()
         val latency = finalEndedAt?.let { SystemClock.elapsedRealtime() - it }
         clearAssembly(); clearAttempt(destroy = false)
-        if (text.isNotBlank()) { recovery.successfulPhrase(); observer?.result(appTicket,text,latency) }
+        if (text.isNotBlank()) { phraseRecovery.accepted(); recovery.successfulPhrase(); observer?.result(appTicket,text,latency) }
     }
     private fun scheduleDelivery(client: String, ticket: Long, appTicket: Long) {
         continuationHandler.removeCallbacksAndMessages(null)
@@ -101,7 +104,7 @@ internal class LanaServiceRecognizer(private val context: Context) {
         var ready = false
         fun live() = gate.accepts(client,ticket) && current.acceptsEvents()
         fun error(code: Int, origin: String = "android") {
-            if (live()) observer?.diagnostic(appTicket,"Распознавание: источник=$origin; код=$code")
+            if (live() && code != 6 && code != 7) observer?.diagnostic(appTicket,"Распознавание: источник=$origin; код=$code")
             if (gate.accepts(client,ticket) && current.finish()) failed(client,ticket,appTicket,code)
         }
         handler.postDelayed({ if (live() && !ready) error(11,"start_timeout") }, LanaRecognitionRecovery.START_TIMEOUT_MS)
@@ -165,18 +168,23 @@ internal class LanaServiceRecognizer(private val context: Context) {
             })
         } catch (_: Exception) { error(3) }
     }
+    private fun rejectPhrase(client: String, ticket: Long, appTicket: Long, message: String) {
+        if (!gate.finish(client,ticket)) return
+        clearAssembly(); clearAttempt(destroy = true)
+        if (phraseRecovery.retryAllowed()) observer?.retryPhrase(appTicket,message)
+        else observer?.stopped("Несколько фраз подряд не распознаны целиком. Сеанс остановлен; можно использовать текстовый ввод.")
+    }
     private fun failed(client: String, ticket: Long, appTicket: Long, code: Int) {
         if (!gate.accepts(client,ticket)) return
+        if (code in setOf(9,12,13)) clearAssembly()
         if (assembly.hasText) {
             if (assembly.continuing) {
-                clearAssembly(); gate.finish(client,ticket); clearAttempt(destroy = true)
-                observer?.stopped("Продолжение фразы не распознано. Вопрос не отправлен; повтори его целиком.")
+                rejectPhrase(client,ticket,appTicket,"Не расслышала окончание. Вопрос не отправлен. Повтори его целиком, я слушаю.")
             } else if (code == 6 || code == 7) {
                 clearAttempt(destroy = false)
                 scheduleDelivery(client,ticket,appTicket)
             } else {
-                clearAssembly(); gate.finish(client,ticket); clearAttempt(destroy = true)
-                observer?.stopped("Распознавание прервалось. Вопрос не отправлен; повтори его целиком.")
+                rejectPhrase(client,ticket,appTicket,"Распознавание прервалось. Вопрос не отправлен. Повтори его целиком, я слушаю.")
             }
             return
         }
