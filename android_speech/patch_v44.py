@@ -188,6 +188,92 @@ def make_preview(archive,destination):
     s=one(s, '''        val recognitionTicket = voiceSession.start()
         if (activeRecognitionTurn?.acceptsEvents() == true) return''', '''        if (activeRecognitionTurn?.acceptsEvents() == true) return
         val recognitionTicket = voiceSession.start()''')
+    s=one(s, '    private fun askFromLana(question: String) {', '''    private fun askFromLana(question: String) {
+        val clockAnswer = LanaDeviceClock.answer(question)
+        if (clockAnswer != null) {
+            chatRequestStartedAt = 0L
+            voiceDiagnostic("Дата и время: часы планшета")
+            speakFromLana(clockAnswer)
+            return
+        }''')
+    (src/'LanaDeviceClock.kt').write_text(r'''package ai.dreibus.lanalive
+
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+
+/** Narrow local intents only. Never guess current facts from a language model. */
+internal object LanaDeviceClock {
+    private val dateQuestion = Regex(
+        "(?:какое (?:сегодня )?число|какая (?:сегодня )?дата|какой сегодня день" +
+        "|какой (?:сейчас |сегодня )?(?:год|месяц|день недели)" +
+        "|(?:назови|скажи) (?:сегодняшнюю |текущую )?дату)")
+    private val timeQuestion = Regex(
+        "(?:сколько (?:сейчас )?времени|сколько сейчас время|который (?:сейчас )?час" +
+        "|какое (?:сейчас |текущее )?время|(?:назови|скажи) (?:текущее )?время)")
+
+    fun answer(question: String, now: Date = Date(), zone: TimeZone = TimeZone.getDefault()): String? {
+        val text = question.lowercase(Locale.ROOT).replace('ё', 'е')
+            .replace(Regex("[.,!?;:]"), " ").replace(Regex("\\s+"), " ").trim()
+            .removePrefix("лана ").removePrefix("пожалуйста ").removeSuffix(" пожалуйста").trim()
+        val date = dateQuestion.matches(text) ||
+            text == "какой сегодня день и какой год какой месяц" ||
+            text == "какой сегодня день и какой год и какой месяц"
+        val time = timeQuestion.matches(text)
+        // Full matching avoids intercepting historical dates, time zones,
+        // weather, reminders, or a question containing additional requests.
+        if (!date && !time) return null
+        val pattern = if (date) "EEEE, d MMMM yyyy 'года'" else "HH:mm"
+        val formatted = SimpleDateFormat(pattern, Locale("ru", "RU")).apply { timeZone = zone }.format(now)
+        return if (date) "По часам планшета сегодня $formatted."
+            else "По часам планшета сейчас $formatted."
+    }
+}
+''')
+    tests=out/'app/src/test/java/ai/dreibus/lanalive'
+    (tests/'LanaDeviceClockTest.kt').write_text(r'''package ai.dreibus.lanalive
+
+import org.junit.Assert.*
+import org.junit.Test
+import java.time.Instant
+import java.util.Date
+import java.util.TimeZone
+
+class LanaDeviceClockTest {
+    private fun at(value: String) = Date.from(Instant.parse(value))
+    private val berlin = TimeZone.getTimeZone("Europe/Berlin")
+
+    @Test fun spokenCompoundQuestionUsesActualCalendarDate() {
+        val reply = LanaDeviceClock.answer("Какой сегодня день и какой год какой месяц?",
+            at("2026-10-23T14:13:00Z"), berlin)!!
+        assertTrue(reply.contains("пятница, 23 октября 2026 года"))
+    }
+    @Test fun currentTimeUsesDeviceZoneAndChangesAcrossDayBoundary() {
+        assertEquals("По часам планшета сейчас 00:05.",
+            LanaDeviceClock.answer("Лана, сколько сейчас время?", at("2026-10-23T22:05:00Z"), berlin))
+        assertTrue(LanaDeviceClock.answer("Какая сегодня дата", at("2026-10-23T22:05:00Z"), berlin)!!.contains("24 октября"))
+    }
+    @Test fun daylightSavingIsCalculatedForTheRequestedInstant() {
+        assertTrue(LanaDeviceClock.answer("Который час", at("2026-10-25T00:30:00Z"), berlin)!!.contains("02:30"))
+        assertTrue(LanaDeviceClock.answer("Который час", at("2026-10-25T01:30:00Z"), berlin)!!.contains("02:30"))
+        assertTrue(LanaDeviceClock.answer("Который час", at("2026-10-25T02:30:00Z"), berlin)!!.contains("03:30"))
+    }
+    @Test fun unrelatedOrCompoundRequestsContinueToServer() {
+        for (question in listOf("В каком году основана Рига", "Какой сегодня день рождения у Петра",
+            "Сколько времени нужно на дорогу", "Какая погода на улице", "Какое время в Токио",
+            "Скажи дату и погоду", "Какая сегодня дата и поставь будильник", "")) {
+            assertNull(question, LanaDeviceClock.answer(question, at("2026-10-23T14:00:00Z"), berlin))
+        }
+    }
+    @Test fun shortDateAndYearRequestsAreRecognized() {
+        for (question in listOf("Какое сегодня число?", "Какой сейчас год", "Какой сейчас месяц",
+            "Лана, скажи дату, пожалуйста")) {
+            assertTrue(question, LanaDeviceClock.answer(question, at("2026-10-23T14:00:00Z"), berlin)!!.contains("2026"))
+        }
+    }
+}
+''')
     p.write_text(s)
     build=out/'app/build.gradle.kts';build.write_text(build.read_text().replace('versionCode = 8','versionCode = 9').replace('0.6.3-lana-voice-repair','0.6.4-lana-shimmer'))
     return out
