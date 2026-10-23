@@ -485,9 +485,10 @@ class LanaConnectionCipherTest {
 
 '''
     s=one(s, '    private fun appendHistory(line: String) {', teamMethod+'    private fun appendHistory(line: String) {')
-    for name in ('LanaTeamPanel.kt', 'LanaTeamJournal.kt'):
+    for name in ('LanaTeamPanel.kt', 'LanaTeamJournal.kt', 'LanaTeamPrompt.kt'):
         shutil.copyfile(ROOT/'android_team/src'/name, src/name)
-    shutil.copyfile(ROOT/'android_team/tests/LanaTeamJournalTest.kt', tests/'LanaTeamJournalTest.kt')
+    for name in ('LanaTeamJournalTest.kt', 'LanaTeamPromptTest.kt'):
+        shutil.copyfile(ROOT/'android_team/tests'/name, tests/name)
     ws=workspace.read_text()
     begin=ws.index('        val team = column().apply {')
     end=ws.index('        addPanel(team)', begin)

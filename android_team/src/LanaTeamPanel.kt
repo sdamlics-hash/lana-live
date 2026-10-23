@@ -24,7 +24,7 @@ internal class LanaTeamPanel(private val activity: Activity) {
             val input = EditText(activity).apply {
                 hint = "Задание помощнику OpenAI"; minLines = 2
                 setTextColor(Color.rgb(52, 44, 42))
-                filters = arrayOf(android.text.InputFilter.LengthFilter(1800))
+                filters = arrayOf(android.text.InputFilter.LengthFilter(LanaTeamPrompt.MAX_TASK))
                 contentDescription = "team_task_input"
             }
             panel.addView(input)
@@ -35,12 +35,12 @@ internal class LanaTeamPanel(private val activity: Activity) {
                 setOnClickListener {
                     val task = input.text.toString().trim()
                     val id = try { journal.begin(task) } catch (_: Exception) {
-                        Toast.makeText(activity, "Нужно новое задание от 1 до 1800 символов; повторная отправка заблокирована.", Toast.LENGTH_LONG).show()
+                        Toast.makeText(activity, "Нужно новое задание от 1 до 1000 символов; повторная отправка заблокирована.", Toast.LENGTH_LONG).show()
                         return@setOnClickListener
                     }
                     sending = true
                     render()
-                    send("Ты помощник команды Ланы. Подготовь результат по заданию. Отдели факты от предположений, укажи что нужно проверить и следующий шаг. Не утверждай, что выполнил внешние действия или прочитал файлы, которых тебе не передавали.\nЗадание: " + task) { answer, error ->
+                    send(LanaTeamPrompt.build(task)) { answer, error ->
                         sending = false
                         try { journal.finish(id, answer, error) } catch (_: Exception) {
                             // Keep the received result visible even when durable storage fails.
