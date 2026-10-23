@@ -40,9 +40,10 @@ internal class LanaServiceRecognizer(private val context: Context) {
     fun attach(client: String, events: Observer) {
         mainThread()
         val previous = observer
+        val changedOwner = !gate.owns(client)
         clearAssembly()
         clearAttempt(destroy = true)
-        phraseRecovery.accepted()
+        if (changedOwner) phraseRecovery.accepted()
         gate.attach(client); owner = client; observer = events
         if (previous !== events) previous?.stopped("Голосовой сеанс передан новому экрану")
     }
