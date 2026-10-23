@@ -89,7 +89,7 @@ jobs:
           import re
           def certificate(path):
               text = Path(path).read_text()
-              values = re.findall(r'Signer #\d+ certificate SHA-256 digest: (\w+)', text)
+              values = re.findall(r'Signer #[0-9]+ certificate SHA-256 digest: ([a-fA-F0-9]+)', text)
               if not values:
                   raise SystemExit('Cannot establish signer identity')
               return sorted(values)
