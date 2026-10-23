@@ -93,15 +93,15 @@ def make_preview(archive, destination):
     s = replace(s, '    private fun appendHistory(line: String) {', methods + '    private fun appendHistory(line: String) {')
     # Timings contain durations only, never recognized text or credentials.
     s = replace(s, '    private var speaking = false',
-        '    private var chatRequestStartedAt = 0L\\n    private var synthesisRequestedAt = 0L\\n    private var speaking = false')
+        '    private var chatRequestStartedAt = 0L\n    private var synthesisRequestedAt = 0L\n    private var speaking = false')
     s = replace(s, '        voiceDiagnostic("Отправляю вопрос серверу")',
-        '        chatRequestStartedAt = android.os.SystemClock.elapsedRealtime()\\n        voiceDiagnostic("Отправляю вопрос серверу")')
+        '        chatRequestStartedAt = android.os.SystemClock.elapsedRealtime()\n        voiceDiagnostic("Отправляю вопрос серверу")')
     s = replace(s, '        voiceDiagnostic("Ответ получен; запускаю озвучку")',
-        '        if (chatRequestStartedAt > 0L) {\\n            voiceDiagnostic("Ожидание сервера, мс: " + (android.os.SystemClock.elapsedRealtime() - chatRequestStartedAt))\\n            chatRequestStartedAt = 0L\\n        }\\n        synthesisRequestedAt = android.os.SystemClock.elapsedRealtime()\\n        voiceDiagnostic("Ответ получен; запускаю озвучку")')
+        '        if (chatRequestStartedAt > 0L) {\n            voiceDiagnostic("Ожидание сервера, мс: " + (android.os.SystemClock.elapsedRealtime() - chatRequestStartedAt))\n            chatRequestStartedAt = 0L\n        }\n        synthesisRequestedAt = android.os.SystemClock.elapsedRealtime()\n        voiceDiagnostic("Ответ получен; запускаю озвучку")')
     s = replace(s, '                            voiceDiagnostic("Озвучка началась")',
-        '                            if (synthesisRequestedAt > 0L) voiceDiagnostic("Запуск синтеза, мс: " + (android.os.SystemClock.elapsedRealtime() - synthesisRequestedAt))\\n                            voiceDiagnostic("Озвучка началась")')
+        '                            if (synthesisRequestedAt > 0L) voiceDiagnostic("Запуск синтеза, мс: " + (android.os.SystemClock.elapsedRealtime() - synthesisRequestedAt))\n                            voiceDiagnostic("Озвучка началась")')
     s = replace(s, '                    turn.endedAt?.let { ended ->',
-        '                    turn.endedAt?.let { ended ->\\n                        voiceDiagnostic("Конец речи → текст, мс: " + (android.os.SystemClock.elapsedRealtime() - ended))')
+        '                    turn.endedAt?.let { ended ->\n                        voiceDiagnostic("Конец речи → текст, мс: " + (android.os.SystemClock.elapsedRealtime() - ended))')
     activity.write_text(s)
     layout = out/'app/src/main/res/layout/activity_main.xml'
     tree = ET.fromstring(layout.read_text())
