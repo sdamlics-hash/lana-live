@@ -150,6 +150,45 @@ def make_preview(archive,destination):
     settings.insert(0,ET.Element('CheckBox',{A+'id':'@+id/cloudVoice',A+'layout_width':'match_parent',A+'layout_height':'wrap_content',A+'text':'Голос Shimmer · 1,25× (через сервер)',A+'contentDescription':'cloud_voice',A+'textColor':'#342C2A',A+'saveEnabled':'false'}))
     settings.insert(1,ET.Element('TextView',{A+'layout_width':'match_parent',A+'layout_height':'wrap_content',A+'text':'Голос создан ИИ. При выключенном Shimmer используются голос и скорость Android, выбранные ниже.',A+'textColor':'#796258'}))
     layout.write_text(ET.tostring(tree,encoding='unicode').replace('LANA Live V4.3','LANA Live V4.4'))
+    # Keep the recognition service bound between completed turns. Destroying
+    # and immediately rebinding it on every answer races the service teardown.
+    s=p.read_text()
+    s=one(s, '    private var speaking = false', '''    private var speaking = false
+    private var activeRecognitionTurn: LanaRecognitionTurn? = null
+
+    private fun cancelRecognition() {
+        activeRecognitionTurn?.finish()
+        activeRecognitionTurn = null
+        recognizer?.cancel()
+    }''')
+    s=one(s, '''        val turn = LanaRecognitionTurn()
+        recognizer?.destroy()
+        recognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {''', '''        if (activeRecognitionTurn?.acceptsEvents() == true) return
+        val turn = LanaRecognitionTurn()
+        activeRecognitionTurn = turn
+        status.text = "Подключаю микрофон…"
+        if (recognizer == null) recognizer = SpeechRecognizer.createSpeechRecognizer(this)
+        recognizer?.apply {''')
+    # Closing the turn before intentional cancel prevents late callbacks from
+    # scheduling a retry during synthesis or accepting the assistant's voice.
+    s=s.replace('recognizer?.cancel()', 'cancelRecognition()')
+    s=one(s, '''        activeRecognitionTurn = null
+        cancelRecognition()''', '''        activeRecognitionTurn = null
+        recognizer?.cancel()''')
+    s=one(s, '''                    } else { voiceDiagnostic("Ошибка распознавания: " + error); retryVoice() }''', '''                    } else {
+                        if (error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED) {
+                            recognizer?.destroy()
+                            recognizer = null
+                            voiceDiagnostic("Восстанавливаю соединение с распознавателем")
+                        } else voiceDiagnostic("Ошибка распознавания: " + error)
+                        retryVoice()
+                    }''')
+    # Check for an already running turn before advancing the session ticket;
+    # otherwise a duplicate scheduled retry would invalidate its callbacks.
+    s=one(s, '''        val recognitionTicket = voiceSession.start()
+        if (activeRecognitionTurn?.acceptsEvents() == true) return''', '''        if (activeRecognitionTurn?.acceptsEvents() == true) return
+        val recognitionTicket = voiceSession.start()''')
+    p.write_text(s)
     build=out/'app/build.gradle.kts';build.write_text(build.read_text().replace('versionCode = 8','versionCode = 9').replace('0.6.3-lana-voice-repair','0.6.4-lana-shimmer'))
     return out
 if __name__=='__main__':make_preview(Path(sys.argv[1]),Path(sys.argv[2]))
