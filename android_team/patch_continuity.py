@@ -47,7 +47,13 @@ def install(out: Path, root: Path):
             } catch (_: Exception) { speakFromLana("Журнал команды не прочитан. Записи не изменены; ничего не отправлено.") }
             return
         }''')
+    change('    internal fun voiceSessionReport(): String {', '    internal fun clearSavedDialogueContext(): Boolean = dialogueStorage.clear()\n    internal fun voiceSessionReport(): String {')
     p.write_text(s)
+    controls = src/'LanaConversationControls.kt'
+    controls.write_text(controls.read_text()
+        .replace('Выбор заметок для передачи будет снят.', 'Выбор заметок для передачи будет снят; прежний локальный контекст будет удалён.')
+        .replace('                                activity.recreate()', '''                                if (!activity.clearSavedDialogueContext()) Toast.makeText(activity, "Новый разговор создан, но прежний локальный контекст не удалось очистить", Toast.LENGTH_LONG).show()
+                                activity.recreate()'''))
     panel = src/'LanaTeamPanel.kt'
     text = panel.read_text().replace('            panel.addView(label("Лана — координатор команды"))', '            panel.addView(label("Лана — координатор команды"))\n            panel.addView(label(LanaCoordinator.summary(journal.records())))')
     panel.write_text(text)

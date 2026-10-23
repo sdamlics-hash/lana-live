@@ -12,7 +12,8 @@ import org.json.JSONObject
 
 /** Device-only, bounded and encrypted; never copied into exported notes or backups. */
 internal class LanaDialogueStorage(context: Context) {
-    private val file = AtomicFile(File(context.noBackupFilesDir, "lana-dialogue.enc"))
+    private val base = File(context.noBackupFilesDir, "lana-dialogue.enc")
+    private val file = AtomicFile(base)
     private val alias = "lana.dialogue.aes.v1"
     private fun hash(scope: String) = java.security.MessageDigest.getInstance("SHA-256")
         .digest(scope.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it.toInt() and 255) }
@@ -24,6 +25,10 @@ internal class LanaDialogueStorage(context: Context) {
             .setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE).build())
         generateKey()
     }
+    fun clear(): Boolean = try {
+        file.delete()
+        !base.exists() && !File(base.path + ".bak").exists() && !File(base.path + ".new").exists()
+    } catch (_: Exception) { false }
     fun read(scope: String): String? {
         val stream = try { file.openRead() } catch (_: java.io.FileNotFoundException) { return null }
         val bytes = stream.use { input ->
