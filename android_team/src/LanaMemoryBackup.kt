@@ -9,14 +9,14 @@ internal object LanaMemoryBackup {
     fun validate(records: String): Snapshot {
         require(records.toByteArray(Charsets.UTF_8).size <= MAX_BYTES)
         val root = JSONObject(records)
-        require(root.keySet() == setOf("tasks", "notes"))
+        require(root.keys().asSequence().toSet() == setOf("tasks", "notes"))
         val tasks = root.getJSONArray("tasks")
         val notes = root.getJSONArray("notes")
         require(tasks.length() <= 100 && notes.length() <= 100)
         val ids = mutableSetOf<String>()
         for (i in 0 until tasks.length()) {
             val row = tasks.getJSONObject(i)
-            require(row.keySet() == setOf("id", "title", "done"))
+            require(row.keys().asSequence().toSet() == setOf("id", "title", "done"))
             require(row.get("id") is String && row.getString("id").isNotBlank() && row.getString("id").length <= 100 && ids.add(row.getString("id")))
             require(row.get("title") is String && row.getString("title").isNotBlank() && row.getString("title").length <= 3000)
             require(row.get("done") is Boolean)
@@ -33,7 +33,7 @@ internal object LanaMemoryBackup {
         require(raw.size <= MAX_BYTES)
         val root = JSONObject(String(raw, Charsets.UTF_8))
         require(root.getString("format") == "LANA_MEMORY" && root.getInt("version") == 1)
-        require(root.keySet() == setOf("format", "version", "createdAt", "records"))
+        require(root.keys().asSequence().toSet() == setOf("format", "version", "createdAt", "records"))
         return validate(root.getJSONObject("records").toString())
     }
 }
