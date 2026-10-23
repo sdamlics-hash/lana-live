@@ -17,7 +17,7 @@ def install(out: Path, root: Path):
         binder.configureHandsFree(recognitionOwner,LanaRuntimeRequest(address,
             if (voiceSessionTokenAddress == address) voiceSessionToken.orEmpty() else "",
             voiceConversationId,"","",findViewById<android.widget.CheckBox>(R.id.legacyServerMode).isChecked,
-            LanaWorkspace.contextNotes(this)),runtimeVoice(),conversationActive)
+            LanaWorkspace.contextNotes(this@MainActivity)),runtimeVoice(),conversationActive)
 ''' + old)
     old = '    override fun onDestroy() {'
     assert s.count(old) == 1
