@@ -16,6 +16,8 @@ internal class LanaTeamPanel(private val activity: Activity) {
             panel.addView(label("Журнал не прочитан. Исходные записи сохранены; отправка заблокирована.")); return
         }
         var sending = false
+        var query = ""
+        var selectedStatus = ""
         fun render() {
             panel.removeAllViews()
             panel.addView(label("Лана — координатор команды"))
@@ -51,17 +53,50 @@ internal class LanaTeamPanel(private val activity: Activity) {
                     }
                 }
             })
-            val records = journal.records()
-            for (i in records.length() - 1 downTo 0) {
+            val search = EditText(activity).apply {
+                hint = "Поиск по заданиям и ответам"; setText(query)
+                contentDescription = "team_journal_search"
+            }
+            panel.addView(search)
+            val statuses = listOf("" to "Все", "review" to "Ожидают проверки", "verified" to "Подтверждены", "rejected" to "Отклонены", "error" to "Ошибки", "interrupted" to "Прерваны", "running" to "В работе")
+            val filter = Spinner(activity).apply {
+                adapter = ArrayAdapter(activity, android.R.layout.simple_spinner_dropdown_item, statuses.map { it.second })
+                setSelection(statuses.indexOfFirst { it.first == selectedStatus })
+                contentDescription = "team_journal_status"
+            }
+            panel.addView(filter)
+            panel.addView(Button(activity).apply {
+                text = "Найти в журнале"
+                setOnClickListener { query = search.text.toString(); selectedStatus = statuses[filter.selectedItemPosition].first; render() }
+            })
+            val records = journal.filtered(query, selectedStatus)
+            panel.addView(label("Найдено: " + records.length()))
+            for (i in 0 until records.length()) {
                 val row = records.getJSONObject(i)
                 val state = when (row.getString("status")) {
                     "running" -> "Отправлено, ожидаю ответ"
                     "review" -> "Ответ получен — не проверен"
                     "verified" -> "Результат подтверждён пользователем"
+                    "rejected" -> "Ответ отклонён пользователем"
                     "interrupted" -> "Сеанс прерван; результат неизвестен, повторной отправки не было"
                     else -> "Ошибка запроса"
                 }
                 panel.addView(label("OpenAI · $state\n" + row.getString("task") + "\n" + row.optString("answer", row.optString("error"))))
+                if (row.has("reviewNote")) panel.addView(label("Причина: " + row.getString("reviewNote")))
+                if (row.getString("status") == "review") {
+                    val reason = EditText(activity).apply {
+                        hint = "Причина отклонения ответа"
+                        filters = arrayOf(android.text.InputFilter.LengthFilter(500))
+                    }
+                    panel.addView(reason)
+                    panel.addView(Button(activity).apply {
+                        text = "Отклонить ответ"
+                        setOnClickListener {
+                            try { journal.reject(row.getString("id"), reason.text.toString().trim()); render() }
+                            catch (_: Exception) { Toast.makeText(activity, "Укажи причину; отклонение должно сохраниться", Toast.LENGTH_LONG).show() }
+                        }
+                    })
+                }
                 if (row.getString("status") == "review") panel.addView(Button(activity).apply {
                     text = "Я проверил результат"
                     setOnClickListener {
