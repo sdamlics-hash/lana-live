@@ -210,7 +210,7 @@ internal object LanaDeviceClock {
         "|какой (?:сейчас |сегодня )?(?:год|месяц|день недели)" +
         "|(?:назови|скажи) (?:сегодняшнюю |текущую )?дату)")
     private val timeQuestion = Regex(
-        "(?:сколько (?:сейчас )?(?:времени|время)|который (?:сейчас )?час" +
+        "(?:сколько (?:сейчас )?(?:времени|время)(?: сейчас)?|который (?:сейчас )?час" +
         "|какое (?:сейчас |текущее )?время|(?:назови|скажи) (?:текущее )?время)")
 
     fun answer(question: String, now: Date = Date(), zone: TimeZone = TimeZone.getDefault()): String? {
@@ -262,6 +262,7 @@ class LanaDeviceClockTest {
     @Test fun currentTimeUsesDeviceZoneAndChangesAcrossDayBoundary() {
         assertEquals("По часам планшета сейчас 00:05.",
             LanaDeviceClock.answer("Лана, сколько сейчас время?", at("2026-10-23T22:05:00Z"), berlin))
+        assertTrue(LanaDeviceClock.answer("Сколько время сейчас", at("2026-10-23T22:05:00Z"), berlin)!!.contains("00:05"))
         assertTrue(LanaDeviceClock.answer("Какая сегодня дата", at("2026-10-23T22:05:00Z"), berlin)!!.contains("24 октября"))
     }
     @Test fun daylightSavingIsCalculatedForTheRequestedInstant() {
