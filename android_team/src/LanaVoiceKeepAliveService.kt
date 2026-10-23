@@ -19,6 +19,7 @@ class LanaVoiceKeepAliveService : Service() {
     private lateinit var output: LanaRuntimeSpeaker
     private lateinit var conversation: LanaConversationRuntime
     private var runtimeOwner: String? = null
+    private var runtimeTicket: Long? = null
     private var runtimeEvents: ((LanaConversationRuntime.Snapshot) -> Unit)? = null
     private var historyPreferences = "LanaRuntimeHistory"
     private var savedTurn = -1L
@@ -33,14 +34,94 @@ class LanaVoiceKeepAliveService : Service() {
                 prefs.edit().putString("voice_history",(lines + ("Лана: " + snapshot.answer)).joinToString("\n")).commit()
             }.getOrDefault(false)
         }
-        runCatching { runtimeEvents?.invoke(snapshot.copy(contextSaved=snapshot.contextSaved && visibleHistorySaved)) }
+        runCatching { runtimeEvents?.invoke(snapshot.copy(clientTicket=runtimeTicket ?: snapshot.clientTicket,contextSaved=snapshot.contextSaved && visibleHistorySaved)) }
             .onFailure { runtimeEvents = null; runtimeOwner = null }
-        if (snapshot.turn > 0 && runtimeOwner == null && !busy()) { removeForeground(); stopSelf() }
+        if (loopActive && snapshot.phase in setOf(LanaConversationRuntime.Phase.READY,LanaConversationRuntime.Phase.ERROR)) resumeLoop()
+        if (snapshot.turn > 0 && runtimeOwner == null && !loopActive && !busy()) { removeForeground(); stopSelf() }
+    }
+    private val loopHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val loopOwner = "service-hands-free"
+    private var loopConfig: LanaRuntimeRequest? = null
+    private var loopVoice: LanaRuntimeVoice? = null
+    private var sessionEnded = false
+    private var loopActive = false
+    private val loopGate = LanaHandsFreeGate()
+    private var loopTicket = 0L
+    private var awake = true
+    private fun stopLoop() {
+        sessionEnded = true; loopActive = false; loopGate.stop(); loopHandler.removeCallbacksAndMessages(null)
+        loopConfig = null; loopVoice = null
+    }
+    private fun resumeLoop() {
+        if (!loopActive || !foreground || busy()) return
+        val epoch = loopGate.schedule() ?: return
+        loopHandler.postDelayed({
+            if (loopActive && foreground && loopGate.begin(epoch) && !busy()) { loopTicket = epoch; engine.listen(loopOwner,loopTicket) }
+        },500)
+    }
+    private fun takeOver() {
+        if (!foreground || loopConfig == null || loopVoice == null) return
+        runtimeOwner?.let { engine.detach(it) }
+        // detach() clears the old observer without notifying it as a failed session.
+        loopActive = true; loopGate.start()
+        engine.attach(loopOwner,object : LanaServiceRecognizer.Observer {
+            override fun ready(ticket: Long) {}
+            override fun partial(ticket: Long, text: String) {}
+            override fun diagnostic(ticket: Long, text: String) {}
+            override fun stopped(reason: String) { stopLoop(); conversation.stop(); removeForeground(); stopSelf() }
+            override fun result(ticket: Long, text: String, latencyMs: Long?) {
+                if (!loopActive || !loopGate.accept(ticket)) return
+                val config = loopConfig ?: return
+                val voice = loopVoice ?: return
+                val prefs = getSharedPreferences(voice.historyPreferences,MODE_PRIVATE)
+                val lines = prefs.getString("voice_history", "").orEmpty().lines().filter { it.isNotBlank() }.takeLast(29)
+                if (!prefs.edit().putString("voice_history",(lines + ("Вы: " + text)).joinToString("\n")).commit()) {
+                    stopLoop(); engine.close("Не удалось сохранить реплику"); removeForeground(); stopSelf(); return
+                }
+                fun say(reply: String) { conversation.say(reply,voice,ticket) }
+                when (LanaVoiceCommands.choose(text,awake)) {
+                    LanaVoiceCommands.Action.IGNORE -> { resumeLoop(); return }
+                    LanaVoiceCommands.Action.STOP -> { awake = false; say("Хорошо. Позови, когда понадоблюсь."); return }
+                    LanaVoiceCommands.Action.WAKE -> { awake = true; say("Да, я здесь! Слушаю тебя."); return }
+                    LanaVoiceCommands.Action.ASK -> awake = true
+                }
+                if (LanaLocalWorkspace.matches(text)) {
+                    val memory = getSharedPreferences("lana_workspace_v1",MODE_PRIVATE)
+                    val reply = runCatching {
+                        LanaLocalWorkspace(memory.getString("records", "{\"tasks\":[],\"notes\":[]}")!!) {
+                            memory.edit().putString("records",it).commit()
+                        }.handle(text)
+                    }.getOrNull() ?: "Не удалось выполнить команду локальной памяти. Проверь записи на экране."
+                    say(reply); return
+                }
+                LanaDeviceClock.answer(text)?.let { say(it); return }
+                LanaTeamVoice.localReply(text)?.let { say(it); return }
+                // Keep specialist requests out of the ordinary dialogue endpoint and its history.
+                if (LanaCoordinator.handles(text) || LanaTeamVoice.task(text) != null || LanaTeamVoice.wantsLastReply(text)) {
+                    say("Для этой команды открой экран команды. Запрос специалистам не отправлен."); return
+                }
+                if (config.address.isBlank() || config.token.isBlank()) {
+                    say("Сначала подключи мой сервер на экране проверки связи."); return
+                }
+                val prompt = runCatching { LanaDialoguePrompt.build(text) }.getOrNull()
+                if (prompt == null) { say("Вопрос слишком длинный. Раздели его на несколько реплик."); return }
+                conversation.ask(LanaRuntimeRequest(config.address,config.token,config.conversationId,text,prompt,
+                    config.legacy,LanaWorkspace.contextNotes(this@LanaVoiceKeepAliveService)),voice,ticket)
+            }
+        })
+        resumeLoop()
     }
     private var foreground = false
     private var startupFailure: String? = null
     internal inner class LocalBinder : Binder() {
+        fun sessionEnded() = sessionEnded
+        fun configureHandsFree(owner: String, request: LanaRuntimeRequest, voice: LanaRuntimeVoice, active: Boolean) {
+            if (!engine.owns(owner) || loopActive) return
+            sessionEnded = false
+            loopConfig = request; loopVoice = voice; awake = active
+        }
         fun attach(owner: String, events: LanaServiceRecognizer.Observer) {
+            if (loopActive) { stopLoop(); engine.detach(loopOwner) }
             engine.attach(owner,events)
             startupFailure?.let { reason -> startupFailure = null; engine.close(reason) }
         }
@@ -50,9 +131,9 @@ class LanaVoiceKeepAliveService : Service() {
         }
         fun cancel(owner: String) = engine.cancel(owner)
         fun report() = engine.report() + " Диалог: " + conversation.snapshot.phase.name
-        fun observeConversation(owner: String, listener: (LanaConversationRuntime.Snapshot) -> Unit) {
+        fun observeConversation(owner: String, ticket: Long? = null, listener: (LanaConversationRuntime.Snapshot) -> Unit) {
             if (!engine.owns(owner)) return
-            runtimeOwner = owner; runtimeEvents = listener; relay(conversation.snapshot)
+            runtimeOwner = owner; runtimeTicket = ticket; runtimeEvents = listener; relay(conversation.snapshot)
         }
         fun conversationBusy() = busy()
         fun ask(owner: String, request: LanaRuntimeRequest, voice: LanaRuntimeVoice, ticket: Long) {
@@ -67,17 +148,21 @@ class LanaVoiceKeepAliveService : Service() {
             engine.cancel(owner)
             conversation.say(text,voice,ticket)
         }
-        fun stopConversation(owner: String) { if (engine.owns(owner)) conversation.stop() }
+        fun stopConversation(owner: String) { if (engine.owns(owner)) { stopLoop(); conversation.stop() } }
         fun endBackgroundMode(owner: String) {
-            if (engine.owns(owner)) { removeForeground(); stopSelf() }
+            if (engine.owns(owner)) { stopLoop(); conversation.stop(); engine.cancel(owner); removeForeground(); stopSelf() }
         }
         fun endSession(owner: String) {
-            if (engine.owns(owner)) { conversation.stop(); engine.cancel(owner); removeForeground(); stopSelf() }
+            if (engine.owns(owner)) { stopLoop(); conversation.stop(); engine.cancel(owner); removeForeground(); stopSelf() }
         }
         fun detach(owner: String) {
             if (engine.owns(owner)) {
-                engine.detach(owner); runtimeEvents = null; runtimeOwner = null
-                if (!foreground || !busy()) { conversation.stop(); removeForeground(); stopSelf() }
+                runtimeEvents = null; runtimeOwner = null
+                if (foreground && loopConfig != null && loopVoice != null) { engine.detach(owner); takeOver() }
+                else {
+                    engine.detach(owner)
+                    if (!foreground || !busy()) { stopLoop(); conversation.stop(); removeForeground(); stopSelf() }
+                }
             }
         }
     }
@@ -95,7 +180,7 @@ class LanaVoiceKeepAliveService : Service() {
     }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == STOP) {
-            conversation.stop()
+            stopLoop(); conversation.stop()
             engine.close("Разговор остановлен из уведомления")
             removeForeground(); stopSelf(); return START_NOT_STICKY
         }
@@ -115,7 +200,7 @@ class LanaVoiceKeepAliveService : Service() {
         } catch (_: Exception) {
             val reason = "Не удалось включить фоновый голосовой сервис. Запусти разговор на открытом экране."
             startupFailure = if (engine.hasObserver()) null else reason
-            conversation.stop()
+            stopLoop(); conversation.stop()
             engine.close(reason)
             removeForeground(); stopSelf()
         }
@@ -123,18 +208,20 @@ class LanaVoiceKeepAliveService : Service() {
     }
     override fun onUnbind(intent: Intent?): Boolean {
         runtimeEvents = null; runtimeOwner = null
-        engine.close("Голосовой экран отключён; микрофон освобождён")
-        if (!foreground || !busy()) { conversation.stop(); removeForeground(); stopSelf() }
+        if (!loopActive) {
+            engine.close("Голосовой экран отключён; микрофон освобождён")
+            if (!foreground || !busy()) { stopLoop(); conversation.stop(); removeForeground(); stopSelf() }
+        }
         return false
     }
     override fun onTaskRemoved(rootIntent: Intent?) {
-        conversation.stop()
+        stopLoop(); conversation.stop()
         engine.close("Приложение закрыто; голосовой сеанс остановлен")
         removeForeground(); stopSelf(); super.onTaskRemoved(rootIntent)
     }
     override fun onDestroy() {
         runtimeEvents = null; runtimeOwner = null
-        conversation.stop(); transport.close(); output.close()
+        stopLoop(); conversation.stop(); transport.close(); output.close()
         engine.close("Голосовой сервис завершён")
         removeForeground(); super.onDestroy()
     }

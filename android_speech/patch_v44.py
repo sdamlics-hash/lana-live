@@ -671,5 +671,9 @@ class LanaConnectionCipherTest {
     conversation_runtime = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(conversation_runtime)
     conversation_runtime.install(out, ROOT)
+    spec = importlib.util.spec_from_file_location('lana_hands_free', ROOT/'android_team/patch_hands_free.py')
+    hands_free = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(hands_free)
+    hands_free.install(out, ROOT)
     return out
 if __name__=='__main__':make_preview(Path(sys.argv[1]),Path(sys.argv[2]))
