@@ -31,9 +31,11 @@ internal class LanaUpdater(private val activity: Activity) {
     }
     fun install(anchor: TextView) {
         val parent = anchor.parent as? LinearLayout ?: return
-        label = TextView(activity).apply { text = "Версия Ланы: ${installedVersion()}"; textSize = 13f }
+        label = TextView(activity).apply { text = "Лана · сборка ${installedVersion()} · обновление с сохранением данных"; textSize = 15f; setTextColor(android.graphics.Color.rgb(35, 115, 48)) }
         button = Button(activity).apply {
-            text = "Обновить Лану"; contentDescription = "lana_update"
+            text = "↻ Обновить Лану · ${installedVersion()}"; contentDescription = "lana_update"
+            setTextColor(android.graphics.Color.WHITE)
+            backgroundTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.rgb(35, 125, 54))
             setOnClickListener { if (!busy) check() }
         }
         val index = parent.indexOfChild(anchor)
