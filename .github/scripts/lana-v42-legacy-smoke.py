@@ -112,6 +112,7 @@ for desc in ('dialogue_style_concise','dialogue_style_warm','dialogue_style_humo
     tap(desc=desc)
     wait_checked(desc,False)
 tap(desc='dialogue_style_save')
+reveal('dialogue_style_status')
 find(text='Стиль сохранён на этом устройстве. Действует со следующего вопроса.')
 adb('shell','am','force-stop',PACKAGE)
 adb('shell','am','start','-W','-n',PACKAGE+'/ai.dreibus.lanalive.MainActivity')
