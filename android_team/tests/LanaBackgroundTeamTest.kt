@@ -59,4 +59,24 @@ class LanaBackgroundTeamTest {
         assertFalse(d.running);assertTrue(reply.contains("Не удалось сохранить"));assertTrue(reply.contains("Содержательный ответ"))
         assertEquals("running",j.records().getJSONObject(0).getString("status"))
     }
+    @Test fun thrownTransportFinishesAsErrorWithoutReplay() {
+        val j=LanaTeamJournal("[]") { true };var calls=0;var replies=0
+        val t=object:LanaConversationRuntime.Transport {
+            override fun ask(request:LanaRuntimeRequest,complete:(String?,String?)->Unit):LanaConversationRuntime.Cancel {
+                calls++;throw IllegalStateException("private detail")
+            }
+        }
+        val d=LanaBackgroundTeam(j,t)
+        d.submit("Проверь план",request()) { assertFalse(it.contains("private detail"));replies++ }
+        assertEquals(1,calls);assertEquals(1,replies);assertFalse(d.running)
+        assertEquals("error",j.records().getJSONObject(0).getString("status"))
+    }
+    @Test fun mismatchedOrOversizedTaskNeverCreatesRecordOrRequest() {
+        val j=LanaTeamJournal("[]") { true };val t=Transport();val d=LanaBackgroundTeam(j,t)
+        for (task in listOf("Другой текст", "x".repeat(1001))) {
+            try { d.submit(task,request()) {};fail() } catch (_:IllegalArgumentException) {}
+        }
+        assertEquals(0,t.calls);assertEquals(0,j.records().length())
+    }
+
 }

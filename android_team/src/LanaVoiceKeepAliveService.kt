@@ -50,7 +50,8 @@ class LanaVoiceKeepAliveService : Service() {
     private var historyPreferences = "LanaRuntimeHistory"
     private var savedTurn = -1L
     private var visibleHistorySaved = true
-    private fun busy() = backgroundTeam?.running == true || conversation.snapshot.phase in setOf(LanaConversationRuntime.Phase.THINKING,LanaConversationRuntime.Phase.PREPARING_VOICE,LanaConversationRuntime.Phase.SPEAKING)
+    private fun dialogueBusy() = conversation.snapshot.phase in setOf(LanaConversationRuntime.Phase.THINKING,LanaConversationRuntime.Phase.PREPARING_VOICE,LanaConversationRuntime.Phase.SPEAKING)
+    private fun busy() = backgroundTeam?.running == true || dialogueBusy()
     private fun relay(snapshot: LanaConversationRuntime.Snapshot) {
         if (snapshot.answer.isNotBlank() && savedTurn != snapshot.turn) {
             savedTurn = snapshot.turn
@@ -169,8 +170,11 @@ class LanaVoiceKeepAliveService : Service() {
                         val request = LanaRuntimeRequest(config.address,config.token,java.util.UUID.randomUUID().toString(),
                             task,prompt,config.legacy,LanaWorkspace.contextNotes(this@LanaVoiceKeepAliveService))
                         dispatcher.submit(task,request) { reply ->
-                            if (loopActive || runtimeOwner != null) { errorFeedback = false; conversation.say(reply,voice,ticket) }
-                            else if (!busy()) { removeForeground(); stopSelf() }
+                            if ((loopActive || runtimeOwner != null) && !dialogueBusy()) {
+                                runtimeOwner?.let { engine.cancel(it) }
+                                errorFeedback = false; conversation.say(reply,voice,ticket)
+                            } else if (runtimeOwner == null && !loopActive && !busy()) { removeForeground(); stopSelf() }
+                            else event("team_result_saved_without_interrupting_dialogue")
                         }
                         event("team_task_dispatch running=${dispatcher.running}")
                     } catch (_: Exception) {
