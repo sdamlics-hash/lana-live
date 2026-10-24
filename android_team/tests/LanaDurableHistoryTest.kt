@@ -2,6 +2,45 @@ package ai.dreibus.lanalive
 import org.junit.Assert.*
 import org.junit.Test
 class LanaDurableHistoryTest {
+    @Test fun unreadableSavedContextIsReportedBeforeAnyAnswerAndNeverLeaksStorageDetails() {
+        val messages = mutableListOf<String>()
+        var writes = 0
+        val ledger = LanaLegacyHistory({ throw IllegalStateException("private transcript and credentials") }, { _, _ -> writes++; true })
+        assertTrue(ledger.snapshot("A",messages::add).isEmpty())
+        assertEquals(1,messages.size)
+        assertEquals(ledger.storageWarning,messages.single())
+        assertFalse(messages.single().contains("private"))
+        assertFalse(ledger.commit("A","new question","new answer"))
+        assertEquals(0,writes)
+        assertEquals(listOf("new question","new answer"),ledger.snapshot("A",messages::add).map { it.content })
+        assertEquals(2,messages.size)
+    }
+    @Test fun diagnosticFailureCannotDiscardLiveContextAndNewScopeClearsWarning() {
+        var writes = 0
+        val ledger = LanaLegacyHistory({ if (it == "A") "corrupt" else null }, { _, _ -> writes++; true })
+        assertTrue(ledger.snapshot("A") { throw IllegalStateException("observer failed") }.isEmpty())
+        assertFalse(ledger.commit("A","question","answer"))
+        assertEquals(2,ledger.snapshot("A") { throw IllegalStateException("observer failed") }.size)
+        var warnings = 0
+        assertTrue(ledger.snapshot("B") { warnings++ }.isEmpty())
+        assertEquals(0,warnings)
+        assertNull(ledger.storageWarning)
+        assertTrue(ledger.commit("B","fresh","answer"))
+        assertEquals(1,writes)
+    }
+    @Test fun failedSaveWarningIsReportedOnNextQuestionAndClearedAfterRecovery() {
+        var writable = false
+        val ledger = LanaLegacyHistory({ null }, { _, _ -> writable })
+        ledger.snapshot("A")
+        assertFalse(ledger.commit("A","question","answer"))
+        val warnings = mutableListOf<String>()
+        assertEquals(2,ledger.snapshot("A",warnings::add).size)
+        assertEquals(1,warnings.size)
+        writable = true
+        assertTrue(ledger.commit("A","follow up","reply"))
+        assertEquals(4,ledger.snapshot("A",warnings::add).size)
+        assertEquals(1,warnings.size)
+    }
     @Test fun recentTopicReachesWireAfterRestartAndOlderTurnsAreEvictedInPairs() {
         var disk: String? = null
         val first = LanaLegacyHistory({ disk }, { _, raw -> disk=raw; true })

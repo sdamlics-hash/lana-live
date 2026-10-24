@@ -65,7 +65,7 @@ internal class LanaLegacyHistory(
     var storageWarning: String? = null
         private set
     private var writable = true
-    fun snapshot(scopeKey: String): List<LanaLegacyTurn> {
+    fun snapshot(scopeKey: String, diagnostic: (String) -> Unit = {}): List<LanaLegacyTurn> {
         if (scope != scopeKey) {
             scope = scopeKey; turns.clear(); writable = true; storageWarning = null
             try {
@@ -86,9 +86,12 @@ internal class LanaLegacyHistory(
                 }
             } catch (_: Exception) {
                 writable = false
-                storageWarning = "Сохранённый контекст не прочитан. Беседа продолжается без него; исходный файл не перезаписан."
+                storageWarning = "Сохранённый контекст не прочитан. Доступны только реплики текущего сеанса; исходный файл не перезаписан."
             }
         }
+        // Report before transport, even if the next request fails or is locally rejected.
+        // This is an allowlisted local warning, never the storage exception or transcript.
+        storageWarning?.let { runCatching { diagnostic(it) } }
         return turns.toList()
     }
     fun commit(scopeKey: String, question: String, answer: String): Boolean {
