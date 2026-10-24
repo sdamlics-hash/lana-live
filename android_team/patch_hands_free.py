@@ -85,6 +85,42 @@ def install(out: Path, root: Path):
 
     p = src/'MainActivity.kt'
     s = p.read_text().replace('history.takeLast(8).joinToString("\\n")', 'history.takeLast(8).joinToString("\\n").replace("Лана:","LANA:")')
+    # Recover an unexpectedly lost binding on a visible, still-active session.
+    # Never replay a pending question or restart microphone access from the background.
+    old = '            recognitionObserver.stopped("Связь с голосовым сервисом потеряна. Нажми «Слушать», чтобы начать новый сеанс.")'
+    assert s.count(old) == 1
+    s = s.replace(old, '''            pendingRuntimeAction = null
+            speaking = false
+            if (voiceEnabled && !screenDetached && !isFinishing && !isDestroyed) {
+                scheduleRecognitionReconnect()
+            } else recognitionObserver.stopped("Связь с голосовым сервисом потеряна. Открой разговор для нового сеанса.")''')
+    old = '    private fun bindRecognitionService() {'
+    assert s.count(old) == 1
+    s = s.replace(old, '''    private var recognitionReconnectFailures = 0
+    private fun scheduleRecognitionReconnect() {
+        if (!voiceEnabled || screenDetached || isFinishing || isDestroyed) return
+        recognitionReconnectFailures = (recognitionReconnectFailures + 1).coerceAtMost(6)
+        val delay = (1000L shl (recognitionReconnectFailures - 1)).coerceAtMost(30000L)
+        val ticket = voiceSession.current()
+        recognitionPending = true
+        status.text = "Восстанавливаю голосовой сервис…"
+        handler.postDelayed({
+            if (voiceEnabled && !screenDetached && !isFinishing && !isDestroyed &&
+                voiceSession.accepts(ticket) && recognitionBinder == null && !recognitionBindingRequested) {
+                bindRecognitionService()
+            }
+        },delay)
+    }
+''' + old)
+    old = '            recognitionBinder = service as? LanaVoiceKeepAliveService.LocalBinder'
+    assert s.count(old) == 1
+    s = s.replace(old, old + '\n            recognitionReconnectFailures = 0')
+    old = '        if (!recognitionBindingRequested) recognitionObserver.stopped("Не удалось подключить голосовой сервис. Можно использовать текстовый ввод.")'
+    assert s.count(old) == 1
+    s = s.replace(old, '        if (!recognitionBindingRequested) scheduleRecognitionReconnect()')
+    old = '                    recognitionObserver.stopped("Голосовой сервис не подключился. Начни новый сеанс или используй текстовый ввод.")'
+    assert s.count(old) == 1
+    s = s.replace(old, '                    scheduleRecognitionReconnect()')
     p.write_text(s)
     # Display the fixed Latin brand; preserve Russian speech recognition vocabulary and storage IDs.
     import re
