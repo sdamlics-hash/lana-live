@@ -36,6 +36,7 @@ internal class LanaTeamPanel(private val activity: Activity) {
             Toast.makeText(activity, "Скопировано", Toast.LENGTH_SHORT).show()
         }
         fun render() {
+            if (activity.isFinishing || activity.isDestroyed) return
             panel.removeAllViews()
             panel.addView(label("Лана — координатор команды"))
             panel.addView(label("OpenAI: отправка через существующий сервер Ланы. Это API-помощник, не текущий чат ChatGPT. Результат требует проверки.\nClaude: не подключён.\nManus: не подключён."))
@@ -112,7 +113,8 @@ internal class LanaTeamPanel(private val activity: Activity) {
                         sending = false
                         try { journal.finish(id, answer, error) } catch (_: Exception) {
                             // Keep the received result visible even when durable storage fails.
-                            panel.addView(label("Не удалось сохранить результат. Повторно задание не отправлялось.\n" + (answer ?: error.orEmpty())))
+                            if (!activity.isFinishing && !activity.isDestroyed)
+                                panel.addView(label("Не удалось сохранить результат. Повторно задание не отправлялось.\n" + (answer ?: error.orEmpty())))
                             return@send
                         }
                         render()
