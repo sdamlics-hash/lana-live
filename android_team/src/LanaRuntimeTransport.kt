@@ -36,7 +36,11 @@ internal class LanaRuntimeTransport(private val context: Context, private val di
                     if (answer.isSuccess) complete(answer.getOrNull(),null)
                     else {
                         val failure = answer.exceptionOrNull()
+                        if (failure is LanaChatTimeout) {
+                            runCatching { diagnostic("HTTP timeout stage=" + failure.stage + "; repeat=none") }
+                        }
                         val reason = when (failure) {
+                            is LanaChatTimeout -> failure.message ?: "Время ожидания связи истекло."
                             is LanaChatFailure -> failure.message ?: "Сервер отклонил запрос."
                             is java.net.SocketTimeoutException -> "Сервер не ответил вовремя."
                             is java.net.UnknownHostException -> "Адрес сервера не найден. Временный адрес мог измениться."
