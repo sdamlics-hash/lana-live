@@ -1,6 +1,10 @@
-# LANA combined release after installed 1036
-Baseline stable commit: 361902655e881c6216514bb62a56bce6d2651416; known-good release lana-stable-1036.
-Observed Samsung: «Ладно Прочитай последний ответ команды» was routed to a generic question; stored team answer not spoken. Mascot near-invisible; math operator speech drops symbols.
-Scope: only Android voice command normalizer/tests, fox bitmap paint, speech math, plus development-loop documentation. Do not touch VM, credentials, GOLD/Kraken or installed data.
-Acceptance: Kotlin/Android suite passes; command variants route locally and return latest non-archived journal answer (or honest absence), without calling model; fox uses opaque bitmap paint; spoken math preserves operators. APK signed with existing key, same package, version >1036; publish only after CI. Actual Samsung audio/listening requires user verification.
-Rollback: do not install candidate if tests fail; preserve release lana-stable-1036 and baseline branch commit. For a bad installed update, do not downgrade/clear data blindly; diagnose and publish a higher-version corrective APK with same signing identity.
+# LANA next combined candidate — 2026-10-24
+Baseline: stable release 1037, commit 470f684518534d2b42d92c33a3e1ea54110c4ad3.
+Reported real Samsung behavior: screen-off replies succeed repeatedly; recognition service returns Android code 11 after several turns; partial recognized fragment "плюс пять" lacks first operand. Current app should NOT be called broken 24/7 solely for code 11; recovery observed. User manually stops the session.
+
+Scope: improve guarded SpeechRecognizer lifecycle after onResults, reject clearly truncated stand-alone math fragments locally before model request, add privacy-safe diagnostics/tests, and replace fox with NEW expressive original leafy-girl companion rendered natively (no external PNG dependencies). Preserve installed package, voice transport, local tasks/memory, signing identity and update button.
+
+Acceptance before merge: Kotlin unit tests for split math, legitimate math, session/retry behavior; integrated Android build and emulator memory persistence; on emulator full face+body visible above halo; screenshot evidence; no production changes before successful combined checks.
+Physical Samsung acceptance after separate deployment: >=10 complete screen-off questions, no missed first operand, correct voice/no double-submit, recovery from code11 without user interaction; no loss of tasks/memory after in-place update.
+Rollback: unchanged deployed 1037 and GitHub tag lana-stable-1037; PR isolated. No APK deletion/downgrade. If bad update installed, prepare a higher-version same-signature corrective release; do not clear data.
+Stop and replan after five review cycles or repeated unresolved failure.
