@@ -51,7 +51,7 @@ internal object LanaCoordinator {
             val row=(records.length()-1 downTo 0).map { records.getJSONObject(it) }.firstOrNull { !it.optBoolean("archived") }
             row?.let { "${state(it)}. Задание: ${it.getString("task")}" } ?: "В журнале команды пока нет заданий."
         }
-        "прочитай последний ответ команды", "почитай последний ответ команды", "какой последний ответ команды" ->
+        "прочитай последний ответ команды", "почитай последний ответ команды", "какой последний ответ команды", "последний ответ команды" ->
             latest(records)?.let { "${state(it)}. Ответ API-помощника: ${it.getString("answer")}" } ?: "Сохранённого ответа команды пока нет."
         else -> null
     }
