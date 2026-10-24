@@ -1,10 +1,10 @@
-# Work log — 2026-10-24
-- Confirmed live Samsung 1037: screen-off conversation replied to 12+8=20, 13-4=9, 128+28=156, tablet time; user pressed manual stop. Recognition backend code 11 recurring, not a verified permanent session crash.
-- Baseline stable signed 1037 commit 470f684518534d2b42d92c33a3e1ea54110c4ad3 kept unchanged.
-- Created isolated branch work/lana-screenoff-companion-next.
-- Source inspection: android_team/src/LanaServiceRecognizer.kt cancels a recognizer after its onResults even though callback is final, then restarts after 100 ms. Hypothesis of cancellation race; cannot establish Android backend root cause from code alone.
-- Changed onResults path to avoid redundant cancel and use 300ms guarded continuation restart; code 11 still recreates recognizer with bounded backoff. No model request retry.
-- Added pure classifier LanaIncompleteSpeech for unmistakable dangling math fragment 'плюс пять' or equivalents; rejects before model dispatch and asks for full repetition via existing local voice feedback.
-- Added JVM tests for the filter and registered it with Android generator.
-- Replaced old fox bitmap rendering with wholly new native forest muse character; accents and motion tied to real speech states. No existing image assets altered.
-- Manual Android/emulator tests and physical Samsung verification not yet complete.
+# LANA 1039 — 2026-10-24
+Baseline: installed stable 1038 at d395346a95d91acd7d2f2f51a8cd8c37b8e81884.
+- User rejected chibi character based on physical Samsung screenshot.
+- Isolated branch work/lana-1039-avatar-redesign and PR #44.
+- Replaced old drawn model with a bundled, original portrait WebP in android_team/assets/lana_avatar_1039.webp (9,514 B; blob 14e64be0aba1a13f401b497037e18ccd795a8130).
+- UI now renders this local asset as rounded portrait, keeping voice state indicator and gentle motion; no downloaded images or external URLs at runtime.
+- android_speech/patch_v44.py now copies the resource into drawable-nodpi before compiling.
+- Current Android package CI #40131012435: SUCCESS. Voice Repair runner #40131012419: SUCCESS (Kotlin tests, emulator task/memory checks, screenshot artifact LANA-PRESENCE-PREVIEW).
+- Self inspected emulator screenshot: whole face and shoulders visible, no occluding halo; layout and buttons preserved. No physical Samsung confirmation yet.
+- Voice/recognition code and server untouched. Stable 1038 preserved for corrective rollback.

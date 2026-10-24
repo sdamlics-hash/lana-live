@@ -1,7 +1,7 @@
-# Self-review cycle 1 — LANA next candidate
-Scope: voice recognition + artwork only. No backend or trading changes.
-Verified in code (self review): with gate accepted, fragment guard executes before voice result forwarding; damaged arithmetic fragment does not reach model. Full arithmetic queries are not matched by guard. SpeechRecognizer.onResults stops extra cancel and schedules 300ms continuation. Code 11 continues to trigger recognizer recreation/backoff and logs origin separately.
-Verified in code: native Canvas character drawn above background glow; whole character coordinates remain within x=192..812, y=160..960 of a fitted square, with status line outside. Does not reference old fox bitmap.
-Risks: filtering edge cases in free speech; 300ms can affect continuation latency; screen-off code 11 may come from Android service or battery limitations, not this race. Color/placement need an actual emulator screenshot and physical Samsung visual confirmation.
-CI results: LANA core package validation run #40127704888 SUCCESS (Kotlin Android build/tests). LANA Voice Repair #40127704857: native unit tests/APK completed successfully; physical Android emulator persistence stage still in progress at this checkpoint. Physical screen-off stability: NOT TESTED after patch. Independent review: NOT DONE.
-Roll-back: no merge/publish until successful checks; stable release 1037 remains available.
+# LANA 1039 self-review — 2026-10-24
+Type: self-review, NOT independent reviewer verification.
+Actual emulator screenshot was retrieved from CI artifact LANA-PRESENCE-PREVIEW for run #40131012419. Image shows a complete adult portrait with hair, face and shoulders framed in a rounded rectangle; no ear-only/cropped rendering. Text and button layout remain visible.
+Code diff reviewed: replaces only companion drawing with bundled local WebP resource; patch_v44 resource-copy wiring. No cloud/image fetch, no audio/voice recognizer changes.
+CI: core Android validation #40131012435 SUCCESS; full voice-repair APK and emulator persistence #40131012419 SUCCESS. No physical audio or visual test of 1039 yet.
+Remaining risks: user's subjective visual acceptance, specific Samsung density/scale. Image has a warm scenery background, not full transparency.
+Release gate: signed APK with same package/cert and version >1038; then explicit user in-app update and Samsung acceptance. Never uninstall/clear app data.
