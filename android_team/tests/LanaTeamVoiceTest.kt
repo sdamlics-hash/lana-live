@@ -34,6 +34,7 @@ class LanaTeamVoiceTest {
         assertNull(LanaTeamVoice.localReply("Как написать приложение"))
         assertTrue(LanaTeamVoice.wantsLastReply("Прочитай последний ответ команды!"))
         assertTrue(LanaTeamVoice.wantsLastReply("Ладно Прочитай последний ответ команды"))
+        assertTrue(LanaTeamVoice.wantsLastReply("Последний ответ команды"))
         assertFalse(LanaTeamVoice.wantsLastReply("Прочитай последний ответ погодной команды"))
     }
 }
