@@ -31,5 +31,5 @@ internal object LanaTeamVoice {
     // Share the coordinator's recognition variants with on-screen and background speech.
     fun wantsLastReply(words: String): Boolean = LanaCoordinator.normalized(words)
         .replace("почитай", "прочитай") in setOf(
-        "прочитай последний ответ команды", "какой последний ответ команды")
+        "прочитай последний ответ команды", "какой последний ответ команды", "последний ответ команды")
 }
