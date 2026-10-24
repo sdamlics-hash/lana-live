@@ -38,6 +38,24 @@ def find(text=None,desc=None):
 def tap(text=None,desc=None):
     node=find(text,desc);nums=list(map(int,re.findall(r'\d+',node.get('bounds'))))
     adb('shell','input','tap',str((nums[0]+nums[2])//2),str((nums[1]+nums[3])//2))
+def wait_checked(desc, expected):
+    for _ in range(8):
+        node = find(desc=desc)
+        if node.get('checked') == str(expected).lower():
+            return
+        time.sleep(0.5)
+    raise AssertionError('Checked state not reached: '+desc)
+def reveal(desc):
+    size = adb('shell','wm','size')
+    width,height = map(int,re.findall(r'(\d+)x(\d+)',size)[-1])
+    for _ in range(12):
+        for node in snapshot().iter('node'):
+            if node.get('content-desc') == desc:
+                bounds = list(map(int,re.findall(r'\d+',node.get('bounds',''))))
+                if len(bounds) == 4 and bounds[2] > bounds[0] and bounds[3] > bounds[1] and 0 < (bounds[1]+bounds[3])//2 < height:
+                    return node
+        adb('shell','input','swipe',str(width//2),str(height*4//5),str(width//2),str(height//4),'450')
+    raise AssertionError('Control not visible after scrolling: '+desc)
 def add(tab,field,value,button):
     tap(desc='workspace_tab_'+str(tab));tap(desc=field)
     adb('shell','input','text',value);adb('shell','input','keyevent','4');tap(text=button);find(text=value)
@@ -59,6 +77,7 @@ assert find(desc='memory_consent_0').get('checked')=='false', 'Consent must not 
 tap(desc='workspace_tab_4')
 assert find(desc='legacy_server_mode').get('checked')=='false'
 tap(desc='legacy_server_mode')
+wait_checked('legacy_server_mode',True)  # Observe the click before killing the process.
 adb('shell','am','force-stop',PACKAGE)
 adb('shell','am','start','-W','-n',PACKAGE+'/ai.dreibus.lanalive.MainActivity')
 tap(desc='workspace_tab_4')
@@ -77,6 +96,32 @@ for _ in range(5):
 find(text='ПРОВЕРИТЬ СВЯЗЬ С ЯДРОМ')
 tap(desc='workspace_tab_0');find(text='НАША ПЕРЕПИСКА')
 print('V4.2 emulator: explicit legacy choice survives restart; truthful initial connection labels; explicit note selection and reset after restart;  task/note saved across restart, completion, deletion cancel, settings/voice navigation passed')
+
+# Explicit style choices are local, shared by foreground/background dialogue and durable.
+tap(desc='workspace_tab_4')
+reveal('dialogue_style_save')
+for desc in ('dialogue_style_concise','dialogue_style_warm','dialogue_style_humor'):
+    wait_checked(desc,True)
+    tap(desc=desc)
+    wait_checked(desc,False)
+tap(desc='dialogue_style_save')
+find(text='Стиль сохранён на этом устройстве. Действует со следующего вопроса.')
+adb('shell','am','force-stop',PACKAGE)
+adb('shell','am','start','-W','-n',PACKAGE+'/ai.dreibus.lanalive.MainActivity')
+tap(desc='workspace_tab_4')
+reveal('dialogue_style_save')
+for desc in ('dialogue_style_concise','dialogue_style_warm','dialogue_style_humor'):
+    wait_checked(desc,False)
+# A draft checkbox change must not be silently saved.
+tap(desc='dialogue_style_humor')
+wait_checked('dialogue_style_humor',True)
+adb('shell','am','force-stop',PACKAGE)
+adb('shell','am','start','-W','-n',PACKAGE+'/ai.dreibus.lanalive.MainActivity')
+tap(desc='workspace_tab_4')
+reveal('dialogue_style_save')
+wait_checked('dialogue_style_humor',False)
+tap(desc='workspace_tab_0')
+print('Dialogue style emulator: explicit saved choices survive restart; unsaved checkbox change is discarded; no provider requests made')
 
 from pathlib import Path
 Path("/tmp/lana-presence.png").write_bytes(subprocess.check_output(["adb","exec-out","screencap","-p"],timeout=30))

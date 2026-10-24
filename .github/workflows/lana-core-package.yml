@@ -4,9 +4,8 @@ on:
     branches: ['work/lana-core-resilience']
   pull_request:
     paths:
-      - 'android_team/src/LanaDialogueTiming.kt'
-      - 'android_team/src/LanaRuntimeTransport.kt'
-      - 'android_team/tests/LanaDialogueTimingTest.kt'
+      - 'android_team/**'
+      - 'android_speech/**'
       - '.github/workflows/lana-core-package.yml'
   workflow_dispatch:
 permissions:
