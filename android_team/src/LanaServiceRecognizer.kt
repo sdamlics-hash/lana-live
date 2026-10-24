@@ -68,8 +68,13 @@ internal class LanaServiceRecognizer(private val context: Context) {
         assembly.clear(); finalEndedAt = null
     }
     private fun deliver(client: String, ticket: Long, appTicket: Long, stopText: String? = null) {
-        if (!gate.finish(client,ticket)) return
+        if (!gate.accepts(client,ticket)) return
         val text = stopText ?: assembly.take()
+        if (stopText == null && LanaIncompleteSpeech.missingFirstOperand(text)) {
+            rejectPhrase(client,ticket,appTicket,"Не расслышала первое число. Повтори вопрос целиком, я слушаю.")
+            return
+        }
+        if (!gate.finish(client,ticket)) return
         val latency = finalEndedAt?.let { SystemClock.elapsedRealtime() - it }
         clearAssembly(); clearAttempt(destroy = false)
         if (text.isNotBlank()) { phraseRecovery.accepted(); recovery.successfulPhrase(); observer?.result(appTicket,text,latency) }
@@ -81,10 +86,11 @@ internal class LanaServiceRecognizer(private val context: Context) {
             if (gate.accepts(client,ticket) && assembly.ready(SystemClock.elapsedRealtime())) deliver(client,ticket,appTicket)
         }, wait)
     }
-    private fun clearAttempt(destroy: Boolean) {
+    private fun clearAttempt(destroy: Boolean, cancelCurrent: Boolean = true) {
         turn?.finish(); turn = null
         handler.removeCallbacksAndMessages(null)
-        runCatching { recognizer?.cancel() }
+        // onResults is already final; avoid racing the next recognition with a redundant cancel.
+        if (cancelCurrent) runCatching { recognizer?.cancel() }
         if (destroy) { runCatching { recognizer?.destroy() }; recognizer = null }
     }
     fun listen(client: String, appTicket: Long) {
@@ -155,9 +161,9 @@ internal class LanaServiceRecognizer(private val context: Context) {
                     }
                     observer?.diagnostic(appTicket,"Фрагмент получен; слушаю продолжение перед отправкой")
                     if (!gate.accepts(client,ticket)) return
-                    clearAttempt(destroy = false)
+                    clearAttempt(destroy = false, cancelCurrent = false)
                     scheduleDelivery(client,ticket,appTicket)
-                    handler.postDelayed({ if (gate.accepts(client,ticket)) attempt(client,ticket,appTicket) },100L)
+                    handler.postDelayed({ if (gate.accepts(client,ticket)) attempt(client,ticket,appTicket) },300L)
                 }
             })
             recognizer!!.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
