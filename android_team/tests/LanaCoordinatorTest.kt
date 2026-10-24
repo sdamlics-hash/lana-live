@@ -38,6 +38,26 @@ class LanaCoordinatorTest {
             fail("Must reject oversized memory, not truncate")
         } catch (_: IllegalArgumentException) {}
     }
+    @Test fun observedSamsungRecognitionReadsTheActualLatestTeamReplyWithoutNetwork() {
+        val rows = JSONArray()
+            .put(row("verified", "Старый ответ").put("archived", true))
+            .put(row("review", "Проверка три шага"))
+        for (phrase in listOf(
+            "Прочитай последний ответ команды",
+            "Лана, прочитай последний ответ команды!",
+            "Ладно Прочитай последний ответ команды",
+            "Лана, пожалуйста, прочитай последний ответ команды."
+        )) {
+            assertTrue(phrase, LanaCoordinator.handles(phrase))
+            assertTrue(phrase, LanaTeamVoice.wantsLastReply(phrase))
+            val spoken = LanaCoordinator.reply(phrase, rows)!!
+            assertTrue(spoken, spoken.contains("Проверка три шага"))
+            assertFalse(spoken, spoken.contains("Старый ответ"))
+        }
+        assertEquals("Сохранённого ответа команды пока нет.",
+            LanaCoordinator.reply("Ладно прочитай последний ответ команды", JSONArray()))
+        assertFalse(LanaCoordinator.handles("Ладно расскажи про ландшафт"))
+    }
     @Test fun incompleteAndUnrelatedCommandsDoNotDispatch() {
         assertFalse(LanaCoordinator.handles("Уточни у командывания план"))
         assertFalse(LanaCoordinator.handles("Можешь уточнить у команды?"))
