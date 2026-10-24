@@ -18,4 +18,19 @@ class LanaRecognitionRecoveryTest {
         for (code in listOf(3,8,11)) assertTrue(LanaRecognitionRecovery().error(code).recreate)
         assertEquals(30000L, LanaRecognitionRecovery().error(10).delayMs)
     }
+    @Test fun repeatedNetworkLossRecreatesRecognizerAndSuccessfulPhraseClearsFailureStreak() {
+        for (code in listOf(1,2)) {
+            val policy = LanaRecognitionRecovery()
+            assertFalse(policy.error(code).recreate)
+            repeat(12) {
+                val decision = policy.error(code)
+                assertTrue(decision.recreate)
+                assertFalse(decision.stop)
+                assertTrue(decision.delayMs <= 30000L)
+            }
+            policy.successfulPhrase()
+            assertFalse(policy.error(code).recreate)
+            assertEquals(2000L, policy.error(code).delayMs)
+        }
+    }
 }

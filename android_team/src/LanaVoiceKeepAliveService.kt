@@ -306,6 +306,7 @@ class LanaVoiceKeepAliveService : Service() {
         return START_NOT_STICKY
     }
     override fun onUnbind(intent: Intent?): Boolean {
+        keepBackgroundSession("screen_unbound")
         runtimeEvents = null; runtimeOwner = null
         if (!loopActive) {
             engine.close("Голосовой экран отключён; микрофон освобождён")
@@ -313,7 +314,21 @@ class LanaVoiceKeepAliveService : Service() {
         }
         return false
     }
+    private fun keepBackgroundSession(reason: String): Boolean {
+        if (!foreground || sessionEnded || loopConfig == null || loopVoice == null) return false
+        if (!loopActive) {
+            runtimeOwner?.let { engine.detach(it) }
+            runtimeEvents = null; runtimeOwner = null
+            takeOver()
+        }
+        event("background_session_retained=" + reason)
+        return loopActive
+    }
     override fun onTaskRemoved(rootIntent: Intent?) {
+        if (keepBackgroundSession("task_removed")) {
+            super.onTaskRemoved(rootIntent)
+            return
+        }
         stopLoop("task_removed"); conversation.stop()
         engine.close("Приложение закрыто; голосовой сеанс остановлен")
         removeForeground(); stopSelf(); super.onTaskRemoved(rootIntent)
