@@ -553,6 +553,9 @@ class LanaConnectionCipherTest {
         shutil.copyfile(ROOT/'android_team/src'/name, src/name)
     for name in ('LanaTeamJournalTest.kt', 'LanaTeamPromptTest.kt', 'LanaSelfCheckTest.kt', 'LanaJournalReportTest.kt', 'LanaTeamVoiceTest.kt', 'LanaLocalWorkspaceTest.kt', 'LanaDialoguePromptTest.kt', 'LanaUpdateManifestTest.kt'):
         shutil.copyfile(ROOT/'android_team/tests'/name, tests/name)
+    mascot_dir = out/'app/src/main/res/drawable-nodpi'
+    mascot_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(ROOT/'android_team/assets/lana_fox.png', mascot_dir/'lana_fox.png')
     ws=workspace.read_text()
     begin=ws.index('        val team = column().apply {')
     end=ws.index('        addPanel(team)', begin)
