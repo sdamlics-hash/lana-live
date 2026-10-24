@@ -8,6 +8,7 @@ import android.view.View
 /** Illustrated companion; animation reflects runtime state, never simulated agent work. */
 internal class LanaPresenceView(context: Context) : View(context) {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    private val mascotPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val mascot by lazy { BitmapFactory.decodeResource(resources, R.drawable.lana_fox) }
     private var phase = 0f
     private var state = "Готова"
@@ -46,7 +47,7 @@ internal class LanaPresenceView(context: Context) : View(context) {
         val w = image.width * scale
         val h = image.height * scale
         val drift = if (active) radius * .025f * phase else 0f
-        canvas.drawBitmap(image, null, RectF(cx-w/2f,cy-h/2f+drift,cx+w/2f,cy+h/2f+drift),paint)
+        canvas.drawBitmap(image, null, RectF(cx-w/2f,cy-h/2f+drift,cx+w/2f,cy+h/2f+drift),mascotPaint)
     }
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
