@@ -82,6 +82,13 @@ internal class LanaTeamJournal(raw: String, private val write: (String) -> Boole
         row.put("finishedAt", System.currentTimeMillis())
         commit(next)
     }
+    fun interrupt(id: String) {
+        val next = records()
+        val row = (0 until next.length()).map { next.getJSONObject(it) }.single { it.getString("id") == id }
+        check(row.getString("status") == "running")
+        row.put("status", "interrupted").put("finishedAt", System.currentTimeMillis())
+        commit(next)
+    }
     fun reopen(id: String) {
         val next = records()
         val row = (0 until next.length()).map { next.getJSONObject(it) }.single { it.getString("id") == id }

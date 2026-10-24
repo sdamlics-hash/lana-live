@@ -41,6 +41,7 @@ class LanaVoiceKeepAliveService : Service() {
         wakeHandler.removeCallbacksAndMessages(null)
         runCatching { if (wake?.isHeld == true) wake?.release() }; wake = null
     }
+    private var backgroundTeam: LanaBackgroundTeam? = null
     private var runtimeOwner: String? = null
     private var runtimeTicket: Long? = null
     private var runtimeEvents: ((LanaConversationRuntime.Snapshot) -> Unit)? = null
@@ -49,7 +50,7 @@ class LanaVoiceKeepAliveService : Service() {
     private var historyPreferences = "LanaRuntimeHistory"
     private var savedTurn = -1L
     private var visibleHistorySaved = true
-    private fun busy() = conversation.snapshot.phase in setOf(LanaConversationRuntime.Phase.THINKING,LanaConversationRuntime.Phase.PREPARING_VOICE,LanaConversationRuntime.Phase.SPEAKING)
+    private fun busy() = backgroundTeam?.running == true || conversation.snapshot.phase in setOf(LanaConversationRuntime.Phase.THINKING,LanaConversationRuntime.Phase.PREPARING_VOICE,LanaConversationRuntime.Phase.SPEAKING)
     private fun relay(snapshot: LanaConversationRuntime.Snapshot) {
         if (snapshot.answer.isNotBlank() && savedTurn != snapshot.turn) {
             savedTurn = snapshot.turn
@@ -86,6 +87,7 @@ class LanaVoiceKeepAliveService : Service() {
     private var awake = true
     private fun stopLoop(reason: String = "local_stop") {
         event("loop_stop=" + reason); releaseWake()
+        if (reason != "handover_to_screen") runCatching { backgroundTeam?.stop() }.onFailure { event("team_interrupt_not_saved") }
         sessionEnded = true; loopActive = false; loopGate.stop(); loopHandler.removeCallbacksAndMessages(null)
         loopConfig = null; loopVoice = null; feedbackVoice = null
     }
@@ -150,12 +152,34 @@ class LanaVoiceKeepAliveService : Service() {
                     }
                     if (local != null) { say(local); return }
                 }
-                // Keep specialist requests out of the ordinary dialogue endpoint and its history.
-                if (LanaCoordinator.handles(text) || LanaTeamVoice.task(text) != null || LanaTeamVoice.wantsLastReply(text)) {
-                    say("Для этой команды открой экран команды. Запрос специалистам не отправлен."); return
+                val task = try {
+                    LanaTeamVoice.task(text) ?: if (LanaCoordinator.handles(text))
+                        LanaCoordinator.followUp(text, LanaTeamJournalStore.open(this@LanaVoiceKeepAliveService).records()) else null
+                } catch (_: Exception) {
+                    say("Не удалось подготовить уточнение. Проверь журнал команды; ничего не отправлено."); return
                 }
                 if (config.address.isBlank() || config.token.isBlank()) {
                     say("Сначала подключи мой сервер на экране проверки связи."); return
+                }
+                if (task != null) {
+                    try {
+                        val prompt = LanaTeamPrompt.build(task)
+                        val dispatcher = backgroundTeam ?: LanaBackgroundTeam(
+                            LanaTeamJournalStore.open(this@LanaVoiceKeepAliveService),transport).also { backgroundTeam = it }
+                        val request = LanaRuntimeRequest(config.address,config.token,java.util.UUID.randomUUID().toString(),
+                            task,prompt,config.legacy,LanaWorkspace.contextNotes(this@LanaVoiceKeepAliveService))
+                        dispatcher.submit(task,request) { reply ->
+                            if (loopActive || runtimeOwner != null) { errorFeedback = false; conversation.say(reply,voice,ticket) }
+                            else if (!busy()) { removeForeground(); stopSelf() }
+                        }
+                        event("team_task_dispatch running=${dispatcher.running}")
+                    } catch (_: Exception) {
+                        say("Задание не отправлено: проверь длину, подключение и журнал. Повторное или параллельное задание блокируется.")
+                    }
+                    return
+                }
+                if (LanaCoordinator.handles(text) || LanaTeamVoice.wantsLastReply(text)) {
+                    say("Для изменения записей команды открой её экран. Ничего не отправлено."); return
                 }
                 val prompt = runCatching { LanaDialoguePrompt.build(text) }.getOrNull()
                 if (prompt == null) { say("Вопрос слишком длинный. Раздели его на несколько реплик."); return }
