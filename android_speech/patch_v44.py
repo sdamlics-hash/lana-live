@@ -684,5 +684,9 @@ class LanaConnectionCipherTest {
     hands_free = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(hands_free)
     hands_free.install(out, ROOT)
+    spec = importlib.util.spec_from_file_location('lana_dialogue_style', ROOT/'android_team/patch_dialogue_style.py')
+    dialogue_style = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(dialogue_style)
+    dialogue_style.install(out, ROOT)
     return out
 if __name__=='__main__':make_preview(Path(sys.argv[1]),Path(sys.argv[2]))
