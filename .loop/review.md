@@ -1,9 +1,7 @@
-# LANA batch self-review (2026-10-24)
-Review type: **self-review**, not independent review.
-- Baseline stable 361902655e881c6216514bb62a56bce6d2651416; released APK 1036 remains available.
-- Diff inspected on PR #40: separate opaque mascot Paint avoids inheriting translucent halo alpha.
-- LanaSpokenText maps the four arithmetic operators before removing decorative emoji, with JVM test.
-- Coordinator accepts observed «Ладно ...» in addition to «Лана ...» and reads only actual saved non-archived team answers; tests cover positives, empty journal and unrelated request.
-- CI Android build/unit/emulator: **pending at time of review**, do not infer success.
-- Samsung acoustic audio, screen-off continuity and backend 32-second timeout are **not tested or solved by this patch**.
-- Rollback: preserve release lana-stable-1036; do not uninstall/downgrade installed data; issue higher-version same-signature correction after diagnosis.
+# Self-review cycle 1 — LANA next candidate
+Scope: voice recognition + artwork only. No backend or trading changes.
+Verified in code (self review): with gate accepted, fragment guard executes before voice result forwarding; damaged arithmetic fragment does not reach model. Full arithmetic queries are not matched by guard. SpeechRecognizer.onResults stops extra cancel and schedules 300ms continuation. Code 11 continues to trigger recognizer recreation/backoff and logs origin separately.
+Verified in code: native Canvas character drawn above background glow; whole character coordinates remain within x=192..812, y=160..960 of a fitted square, with status line outside. Does not reference old fox bitmap.
+Risks: filtering edge cases in free speech; 300ms can affect continuation latency; screen-off code 11 may come from Android service or battery limitations, not this race. Color/placement need an actual emulator screenshot and physical Samsung visual confirmation.
+Automated unit/Android/emulator checks: NOT YET RUN at time of review. Physical screen-off stability: NOT TESTED after patch. Independent review: NOT DONE.
+Roll-back: no merge/publish until successful checks; stable release 1037 remains available.
