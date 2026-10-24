@@ -7,6 +7,8 @@ PACKAGE='ai.dreibus.lanalive.voicepreview'
 def adb(*args):
     return subprocess.check_output(['adb',*args],text=True,timeout=30)
 def snapshot():
+    # A failed dump must not reuse an XML tree from an earlier screen/process.
+    adb('shell','rm','-f','/sdcard/lana-v37.xml')
     adb('shell','uiautomator','dump','/sdcard/lana-v37.xml')
     return ET.fromstring(adb('shell','cat','/sdcard/lana-v37.xml'))
 def find(text=None,desc=None):
@@ -49,7 +51,12 @@ def reveal(desc):
     size = adb('shell','wm','size')
     width,height = map(int,re.findall(r'(\d+)x(\d+)',size)[-1])
     for _ in range(12):
-        for node in snapshot().iter('node'):
+        try:
+            root = snapshot()
+        except (subprocess.CalledProcessError, ET.ParseError):
+            time.sleep(1)
+            continue
+        for node in root.iter('node'):
             if node.get('content-desc') == desc:
                 bounds = list(map(int,re.findall(r'\d+',node.get('bounds',''))))
                 if len(bounds) == 4 and bounds[2] > bounds[0] and bounds[3] > bounds[1] and 0 < (bounds[1]+bounds[3])//2 < height:
