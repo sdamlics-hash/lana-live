@@ -555,9 +555,6 @@ class LanaConnectionCipherTest {
 
 '''
     s=one(s, '    private fun appendHistory(line: String) {', teamMethod+'    private fun appendHistory(line: String) {')
-    portrait_dir = out/'app/src/main/res/drawable-nodpi'
-    portrait_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(ROOT/'android_team/assets/lana_portrait.png', portrait_dir/'lana_portrait.png')
     for name in ('LanaTeamPanel.kt', 'LanaTeamJournal.kt', 'LanaTeamPrompt.kt', 'LanaSelfCheck.kt', 'LanaJournalReport.kt', 'LanaTeamVoice.kt', 'LanaLocalWorkspace.kt', 'LanaPresenceView.kt', 'LanaVoiceKeepAliveService.kt', 'LanaDialoguePrompt.kt', 'LanaTypedDialogue.kt', 'LanaUpdater.kt', 'LanaUpdateManifest.kt'):
         shutil.copyfile(ROOT/'android_team/src'/name, src/name)
     for name in ('LanaTeamJournalTest.kt', 'LanaTeamPromptTest.kt', 'LanaSelfCheckTest.kt', 'LanaJournalReportTest.kt', 'LanaTeamVoiceTest.kt', 'LanaLocalWorkspaceTest.kt', 'LanaDialoguePromptTest.kt', 'LanaUpdateManifestTest.kt'):
