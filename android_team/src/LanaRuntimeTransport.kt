@@ -18,7 +18,7 @@ internal class LanaRuntimeTransport(private val context: Context, private val di
         return request.address+"|"+request.conversationId+"|"+request.legacy+"|"+fingerprint
     }
     override fun ask(request: LanaRuntimeRequest, complete: (String?, String?) -> Unit): LanaConversationRuntime.Cancel {
-        val prior = if (request.legacy) history.snapshot(scope(request)) else emptyList()
+        val prior = if (request.legacy) history.snapshot(scope(request),diagnostic) else emptyList()
         if (request.legacy) {
             val error = LanaLegacyQuota.claim(context)
             if (error != null) { complete(null,error); return LanaConversationRuntime.Cancel {} }
