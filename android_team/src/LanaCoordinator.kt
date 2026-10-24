@@ -7,7 +7,7 @@ import java.util.Locale
 /** One source of truth for spoken and visible team state. Never implies tool execution. */
 internal object LanaCoordinator {
     fun normalized(words: String): String = words.lowercase(Locale.ROOT).replace('ё', 'е')
-        .replace(Regex("\\s+"), " ").trim().replace(Regex("^лана[, ]+"), "")
+        .replace(Regex("\\s+"), " ").trim().replace(Regex("^(?:лана|ладно)[, ]+"), "")
         .replace(Regex("^пожалуйста[, ]+"), "").trimEnd('.', '?', '!')
     fun handles(words: String): Boolean {
         val q = normalized(words)
