@@ -28,6 +28,8 @@ internal object LanaTeamVoice {
             else -> null
         }
     }
-    fun wantsLastReply(words: String): Boolean = words.lowercase(Locale.ROOT).replace("почитай", "прочитай").trim().trimEnd('.', '?', '!') in setOf(
-        "прочитай последний ответ команды", "какой последний ответ команды", "лана прочитай последний ответ команды")
+    // Share the coordinator's recognition variants with on-screen and background speech.
+    fun wantsLastReply(words: String): Boolean = LanaCoordinator.normalized(words)
+        .replace("почитай", "прочитай") in setOf(
+        "прочитай последний ответ команды", "какой последний ответ команды", "последний ответ команды")
 }
