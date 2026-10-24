@@ -56,7 +56,7 @@ def make_preview(archive,destination):
     settings.insert(1,ET.Element('TextView',{A+'layout_width':'match_parent',A+'layout_height':'wrap_content',A+'text':'В этом режиме текущий диалог передаётся существующему серверу. История ChatGPT не подключается. Лимит приложения: 30 попыток в час, 100 за 24 часа.',A+'textColor':'#796258'}))
     layout.write_text(ET.tostring(tree,encoding='unicode').replace('LANA Live V4.1','LANA Live V4.2'))
     testdir=out/'app/src/test/java/ai/dreibus/lanalive'
-    for name in ('LanaLegacyProtocolTest.kt', 'LanaChatTimeoutTest.kt'):
+    for name in ('LanaLegacyProtocolTest.kt', 'LanaChatTimeoutTest.kt', 'LanaHttpCancellationTest.kt'):
         shutil.copyfile(ROOT/'android_legacy/tests'/name,testdir/name)
     build=out/'app/build.gradle.kts';s=build.read_text()
     s=exact(s,'versionCode = 6','versionCode = 7','versionCode')

@@ -490,7 +490,9 @@ class LanaConnectionCipherTest {
         if (teamTask != null) { dispatchVoiceTeamTask(teamTask); return }''')
     teamMethod=r'''
     internal var onTeamJournalChanged: (() -> Unit)? = null
-    internal fun teamJournal(): LanaTeamJournal = LanaTeamJournalStore.open(this)
+    internal fun teamJournal(): LanaTeamJournal = LanaTeamJournalStore.open(this).also {
+        LanaTeamJournalStore.observe(this)
+    }
     private fun dispatchVoiceTeamTask(task: String) {
         if (task.length > LanaTeamPrompt.MAX_TASK) {
             speakFromLana("Задание длиннее тысячи символов. Сократи его или подготовь во вкладке Команда.")
@@ -540,9 +542,8 @@ class LanaConnectionCipherTest {
             catch (_: Exception) { error = "Задание не подтверждено: ошибка связи или ответа сервера. Автоматического повтора нет." }
             val result = answer
             val failure = error
-            runOnUiThread {
-                if (!isFinishing && !isDestroyed) complete(result, failure)
-            }
+            // Completion owns durable journal persistence even after this screen is destroyed.
+            android.os.Handler(android.os.Looper.getMainLooper()).post { complete(result, failure) }
         }.start()
     }
 

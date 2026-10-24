@@ -25,9 +25,10 @@ internal class LanaRuntimeTransport(private val context: Context, private val di
         }
         val queuedAt = android.os.SystemClock.elapsedRealtime()
         var cancelled = false
+        val cancellation = LanaHttpCancellation()
         val future = try { worker.submit {
             val startedAt = android.os.SystemClock.elapsedRealtime()
-            val answer = runCatching { LanaChatClient.ask(request.address,request.token,request.conversationId,request.prompt,request.notes,request.legacy,prior) }
+            val answer = runCatching { LanaChatClient.ask(request.address,request.token,request.conversationId,request.prompt,request.notes,request.legacy,prior,cancellation=cancellation) }
             val finishedAt = android.os.SystemClock.elapsedRealtime()
             val timing = LanaDialogueTiming(queuedAt,startedAt,finishedAt,prior.size / 2,answer.isSuccess)
             main.post {
@@ -56,7 +57,14 @@ internal class LanaRuntimeTransport(private val context: Context, private val di
             complete(null,"Предыдущий запрос ещё завершается. Дождись его остановки и повтори вопрос.")
             return LanaConversationRuntime.Cancel {}
         }
-        return LanaConversationRuntime.Cancel { cancelled = true; future.cancel(true) }
+        return LanaConversationRuntime.Cancel {
+            cancelled = true
+            cancellation.cancel { connection ->
+                // disconnect() may wait on platform networking; never block STOP on the UI thread.
+                Thread({ runCatching { connection.disconnect() } },"LanaHttpCancel").apply { isDaemon = true }.start()
+            }
+            future.cancel(true)
+        }
     }
     fun accepted(request: LanaRuntimeRequest, answer: String): Boolean = !request.legacy || history.commit(scope(request),request.question,answer)
     fun close() { worker.shutdownNow(); main.removeCallbacksAndMessages(null) }
