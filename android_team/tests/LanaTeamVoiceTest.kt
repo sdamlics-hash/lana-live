@@ -16,7 +16,16 @@ class LanaTeamVoiceTest {
     @Test fun onlyExplicitDispatchCreatesTasksAndPreservesTaskText() {
         assertEquals("Составь план проверки.", LanaTeamVoice.task("Лана, передай команде задание: Составь план проверки."))
         assertEquals("Сколько будет 2+2?", LanaTeamVoice.task("Отправь помощнику OpenAI: Сколько будет 2+2?"))
-        for (q in listOf("Можешь передать задание команде?", "Что такое команда", "Расскажи про ChatGPT", "Передай команде", "Передай ChatGPT: открой файл")) assertNull(q, LanaTeamVoice.task(q))
+        for (q in listOf("Можешь передать задание команде?", "Что такое команда", "Расскажи про ChatGPT", "Передай команде")) assertNull(q, LanaTeamVoice.task(q))
+    }
+    @Test fun explicitChatGptAliasesDispatchOnlyTheTaskAndDoNotClaimChatAccess() {
+        for (receiver in listOf("ChatGPT", "Chat GPT", "чатгпт", "чату GPT", "чату джипити")) {
+            assertEquals("Проверь план.", LanaTeamVoice.task("Лана, передай $receiver: Проверь план."))
+            assertNull(LanaTeamVoice.task("Передай $receiver"))
+            assertNull(LanaTeamVoice.task("Расскажи про $receiver"))
+        }
+        assertNull(LanaTeamVoice.task("Передай ChatGPTврагам: секрет"))
+        assertTrue(LanaTeamVoice.localReply("Ты подключена к ChatGPT?")!!.contains("не управляю"))
     }
     @Test fun CapabilityRepliesDoNotClaimChatOrOtherAgentAccess() {
         assertTrue(LanaTeamVoice.localReply("Кто в твоей команде?")!!.contains("не подключены"))

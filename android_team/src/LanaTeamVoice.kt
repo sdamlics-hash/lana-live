@@ -3,7 +3,7 @@ package ai.dreibus.lanalive
 import java.util.Locale
 
 internal object LanaTeamVoice {
-    private val dispatch = Regex("^(?:передай|отправь)\\s+(?:задание\\s+)?(?:помощнику\\s+)?(?:openai|open ai|опенай|опен аи|команде|команды)\\b\\s*[:,—-]?\\s*", RegexOption.IGNORE_CASE)
+    private val dispatch = Regex("^(?:передай|отправь)\\s+(?:задание\\s+)?(?:помощнику\\s+)?(?:openai|open ai|опенай|опен аи|chatgpt|chat gpt|чат gpt|чатгпт|чату gpt|чату джипити|команде|команды)\\b\\s*[:,—-]?\\s*", RegexOption.IGNORE_CASE)
     private fun input(words: String) = words.trim().replace(Regex("^лана[, ]+", RegexOption.IGNORE_CASE), "")
     fun task(words: String): String? {
         val value = input(words)
