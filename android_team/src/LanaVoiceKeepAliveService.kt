@@ -141,6 +141,15 @@ class LanaVoiceKeepAliveService : Service() {
                 }
                 LanaDeviceClock.answer(text)?.let { say(it); return }
                 LanaTeamVoice.localReply(text)?.let { say(it); return }
+                // Local journal reads do not contact a model or resend a task.
+                if (LanaCoordinator.handles(text)) {
+                    val local = try {
+                        LanaCoordinator.reply(text, LanaTeamJournalStore.open(this@LanaVoiceKeepAliveService).records())
+                    } catch (_: Exception) {
+                        "Не удалось прочитать журнал команды. Записи не изменены."
+                    }
+                    if (local != null) { say(local); return }
+                }
                 // Keep specialist requests out of the ordinary dialogue endpoint and its history.
                 if (LanaCoordinator.handles(text) || LanaTeamVoice.task(text) != null || LanaTeamVoice.wantsLastReply(text)) {
                     say("Для этой команды открой экран команды. Запрос специалистам не отправлен."); return

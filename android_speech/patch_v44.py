@@ -489,15 +489,8 @@ class LanaConnectionCipherTest {
         val teamTask = LanaTeamVoice.task(question)
         if (teamTask != null) { dispatchVoiceTeamTask(teamTask); return }''')
     teamMethod=r'''
-    private var sharedTeamJournal: LanaTeamJournal? = null
     internal var onTeamJournalChanged: (() -> Unit)? = null
-    internal fun teamJournal(): LanaTeamJournal {
-        sharedTeamJournal?.let { return it }
-        val prefs = getSharedPreferences("lana_team_journal_v1", MODE_PRIVATE)
-        return LanaTeamJournal(prefs.getString("records", "[]")!!) {
-            prefs.edit().putString("records", it).commit()
-        }.also { sharedTeamJournal = it }
-    }
+    internal fun teamJournal(): LanaTeamJournal = LanaTeamJournalStore.open(this)
     private fun dispatchVoiceTeamTask(task: String) {
         if (task.length > LanaTeamPrompt.MAX_TASK) {
             speakFromLana("Задание длиннее тысячи символов. Сократи его или подготовь во вкладке Команда.")
@@ -555,7 +548,7 @@ class LanaConnectionCipherTest {
 
 '''
     s=one(s, '    private fun appendHistory(line: String) {', teamMethod+'    private fun appendHistory(line: String) {')
-    for name in ('LanaTeamPanel.kt', 'LanaTeamJournal.kt', 'LanaTeamPrompt.kt', 'LanaSelfCheck.kt', 'LanaJournalReport.kt', 'LanaTeamVoice.kt', 'LanaLocalWorkspace.kt', 'LanaPresenceView.kt', 'LanaVoiceKeepAliveService.kt', 'LanaDialoguePrompt.kt', 'LanaTypedDialogue.kt', 'LanaUpdater.kt', 'LanaUpdateManifest.kt'):
+    for name in ('LanaTeamJournalStore.kt', 'LanaTeamPanel.kt', 'LanaTeamJournal.kt', 'LanaTeamPrompt.kt', 'LanaSelfCheck.kt', 'LanaJournalReport.kt', 'LanaTeamVoice.kt', 'LanaLocalWorkspace.kt', 'LanaPresenceView.kt', 'LanaVoiceKeepAliveService.kt', 'LanaDialoguePrompt.kt', 'LanaTypedDialogue.kt', 'LanaUpdater.kt', 'LanaUpdateManifest.kt'):
         shutil.copyfile(ROOT/'android_team/src'/name, src/name)
     for name in ('LanaTeamJournalTest.kt', 'LanaTeamPromptTest.kt', 'LanaSelfCheckTest.kt', 'LanaJournalReportTest.kt', 'LanaTeamVoiceTest.kt', 'LanaLocalWorkspaceTest.kt', 'LanaDialoguePromptTest.kt', 'LanaUpdateManifestTest.kt'):
         shutil.copyfile(ROOT/'android_team/tests'/name, tests/name)
