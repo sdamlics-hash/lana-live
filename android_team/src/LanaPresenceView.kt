@@ -6,215 +6,195 @@ import android.graphics.*
 import android.view.View
 import kotlin.math.min
 
-/** LANA companion: a native animated leaf muse, not the former cropped fox bitmap.
- * All illustrated features are painted AFTER the glow, fully inside one fitted viewport.
- * Animation represents only the real voice phase.
- */
+/** A restrained portrait of adult LANA, not a chibi mascot. Visible in a 190dp view. */
 internal class LanaPresenceView(context: Context) : View(context) {
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
     private var phase = 0f
     private var state = "Готова"
-    private val active get() = state in setOf("Слушаю", "Думаю", "Отвечаю")
+    private val moving get() = state in setOf("Слушаю", "Думаю", "Отвечаю")
     private val animator = ValueAnimator.ofFloat(0f, 1f).apply {
-        duration = 1800L
+        duration = 1700L
         repeatCount = ValueAnimator.INFINITE
         repeatMode = ValueAnimator.REVERSE
         addUpdateListener { phase = it.animatedValue as Float; invalidate() }
     }
-
     fun update(value: String) {
         state = when {
             value.startsWith("Слушаю") -> "Слушаю"
             value.startsWith("Думаю") || value.startsWith("Передаю") -> "Думаю"
             value.startsWith("Отвечаю") -> "Отвечаю"
-            value.contains("остановлен", true) -> "Остановлена"
-            else -> value.take(60)
+            value.contains("остановлен",true) -> "Остановлена"
+            else -> value.take(40)
         }
-        contentDescription = "Лана: $state"
-        manageMotion()
-        invalidate()
+        contentDescription = "LANA: $state"
+        syncMotion(); invalidate()
     }
-    private fun manageMotion() {
-        if (isAttachedToWindow && isShown && active) {
+    private fun syncMotion() {
+        if (isAttachedToWindow && isShown && moving) {
             if (!animator.isStarted) animator.start()
         } else { animator.cancel(); phase = 0f }
     }
-    override fun onAttachedToWindow() { super.onAttachedToWindow(); manageMotion() }
+    override fun onAttachedToWindow() { super.onAttachedToWindow(); syncMotion() }
     override fun onDetachedFromWindow() { animator.cancel(); super.onDetachedFromWindow() }
     override fun onVisibilityChanged(changedView: View, visibility: Int) {
-        super.onVisibilityChanged(changedView, visibility)
-        if (isAttachedToWindow) manageMotion()
+        super.onVisibilityChanged(changedView,visibility)
+        if (isAttachedToWindow) syncMotion()
     }
-
-    private fun fill(color: Int) {
+    private fun color(hex: String) = Color.parseColor(hex)
+    private fun fill(col: Int) {
         p.reset()
         p.isAntiAlias = true
-        p.color = color
+        p.color = col
         p.style = Paint.Style.FILL
     }
-    private fun oval(c: Canvas, l: Float, t: Float, r: Float, b: Float, color: Int) {
-        fill(color); c.drawOval(l,t,r,b,p)
+    private fun oval(c: Canvas,l:Float,t:Float,r:Float,b:Float,col:Int) {
+        fill(col);c.drawOval(l,t,r,b,p)
     }
-    private fun orb(c: Canvas, x: Float, y: Float, radius: Float, color: Int) {
-        fill(color); c.drawCircle(x,y,radius,p)
+    private fun disk(c: Canvas,x:Float,y:Float,r:Float,col:Int) {
+        fill(col);c.drawCircle(x,y,r,p)
     }
-    private fun shape(c: Canvas, color: Int, draw: (Path) -> Unit) {
-        val path = Path()
-        draw(path)
-        fill(color)
-        c.drawPath(path,p)
+    private fun path(c:Canvas,col:Int,build:(Path)->Unit) {
+        val shape=Path(); build(shape);fill(col);c.drawPath(shape,p)
     }
-    private fun leaf(c: Canvas, x: Float, y: Float, angle: Float, color: Int) {
-        c.save()
-        c.rotate(angle,x,y)
-        shape(c,color) {
+    private fun leaf(c:Canvas,x:Float,y:Float,rotation:Float,col:Int) {
+        c.save();c.rotate(rotation,x,y)
+        path(c,col) {
             it.moveTo(x,y)
-            it.cubicTo(x-78f,y-67f,x-34f,y-142f,x+15f,y-158f)
-            it.cubicTo(x+85f,y-94f,x+69f,y-27f,x,y)
+            it.cubicTo(x-22f,y-24f,x-14f,y-59f,x+14f,y-72f)
+            it.cubicTo(x+47f,y-48f,x+33f,y-17f,x,y)
             it.close()
         }
-        fill(Color.argb(160,229,254,179))
-        p.style = Paint.Style.STROKE
-        p.strokeWidth = 7f
-        c.drawLine(x,y,x+15f,y-154f,p)
-        c.restore()
+        fill(color("#BCE7B9"));p.style=Paint.Style.STROKE;p.strokeWidth=2f
+        c.drawLine(x,y,x+14f,y-71f,p);c.restore()
     }
-    private fun star(c: Canvas, x: Float, y: Float, scale: Float) {
-        val gold=Color.rgb(255,208,101)
-        orb(c,x,y,scale*10f,gold)
-        fill(Color.argb(130,255,220,145))
-        p.strokeWidth = 5f*scale
-        c.drawLine(x-22f*scale,y,x+22f*scale,y,p)
-        c.drawLine(x,y-22f*scale,x,y+22f*scale,p)
-    }
-
-    private fun muse(c: Canvas) {
-        val darkHair=Color.rgb(152,86,45)
-        val gold=Color.rgb(240,174,85)
-        val lightHair=Color.rgb(255,218,131)
-        val cream=Color.rgb(255,224,185)
-        val green=Color.rgb(53,139,89)
-        val deepGreen=Color.rgb(28,94,66)
-
-        // Glow is behind the character; never draw an opaque disc over her body.
+    private fun portrait(c:Canvas) {
+        val base=color("#C9A36F");val amber=color("#E8C18A")
+        val glint=color("#FFE3A7");val shade=color("#795439")
+        val fern=color("#286C52");val lightFern=color("#64B082")
+        // Halo remains behind the head, never obscuring the face.
         fill(Color.WHITE)
-        p.shader = RadialGradient(500f,492f,450f,
-            intArrayOf(Color.argb(180,213,245,203),Color.argb(75,249,228,176),Color.TRANSPARENT),
+        p.shader=RadialGradient(500f,475f,420f,
+            intArrayOf(Color.argb(65,103,204,139),Color.argb(25,251,203,132),Color.TRANSPARENT),
             null,Shader.TileMode.CLAMP)
-        c.drawCircle(500f,490f,450f,p)
-        p.shader = null
+        c.drawCircle(500f,475f,420f,p);p.shader=null
 
-        // Hair halo, flowing curls and the visible shoulders.
-        oval(c,222f,160f,783f,862f,darkHair)
-        oval(c,241f,169f,764f,857f,gold)
-        for (i in 0..3) {
-            val y=420f+i*106f
-            oval(c,208f-i*7f,y,335f,y+204f,if (i%2==0) darkHair else gold)
-            oval(c,670f+i*7f,y,794f,y+204f,if (i%2==0) gold else darkHair)
-            oval(c,227f,y+18f,297f,y+122f,lightHair)
-            oval(c,709f,y+22f,771f,y+128f,lightHair)
-        }
-
-        // Dress entirely inside the fitted illustration area.
-        shape(c,deepGreen) {
-            it.moveTo(360f,757f)
-            it.cubicTo(240f,775f,207f,881f,192f,959f)
-            it.lineTo(812f,959f)
-            it.cubicTo(793f,861f,755f,772f,641f,753f)
+        // Long swept hair behind neck and shoulders.
+        path(c,shade) {
+            it.moveTo(311f,339f)
+            it.cubicTo(296f,168f,421f,109f,545f,135f)
+            it.cubicTo(739f,143f,756f,297f,736f,436f)
+            it.cubicTo(733f,618f,788f,739f,826f,893f)
+            it.cubicTo(681f,918f,591f,860f,500f,857f)
+            it.cubicTo(409f,870f,308f,915f,176f,897f)
+            it.cubicTo(228f,727f,289f,552f,311f,339f)
             it.close()
         }
-        shape(c,green) {
-            it.moveTo(377f,774f)
-            it.cubicTo(265f,812f,274f,895f,265f,955f)
-            it.lineTo(740f,955f)
-            it.cubicTo(719f,853f,707f,799f,624f,770f)
+        path(c,base) {
+            it.moveTo(328f,294f)
+            it.cubicTo(343f,175f,416f,143f,537f,156f)
+            it.cubicTo(710f,175f,725f,316f,700f,461f)
+            it.cubicTo(702f,694f,759f,814f,784f,885f)
+            it.cubicTo(706f,905f,651f,877f,617f,838f)
+            it.cubicTo(720f,663f,663f,373f,625f,273f)
+            it.cubicTo(493f,196f,397f,286f,365f,478f)
+            it.cubicTo(358f,636f,327f,767f,231f,880f)
+            it.cubicTo(207f,753f,323f,479f,328f,294f)
             it.close()
         }
-        shape(c,Color.rgb(133,191,105)) {
-            it.moveTo(404f,793f);it.quadTo(500f,847f,599f,789f)
-            it.quadTo(554f,899f,500f,934f);it.quadTo(444f,886f,404f,793f);it.close()
+        // Adult shoulder silhouette with dark green garment.
+        path(c,fern) {
+            it.moveTo(418f,747f)
+            it.cubicTo(291f,770f,245f,838f,220f,928f)
+            it.lineTo(790f,928f)
+            it.cubicTo(744f,837f,676f,775f,582f,747f)
+            it.close()
         }
-        // Neck and face.
-        oval(c,431f,690f,573f,824f,cream)
-        oval(c,300f,256f,701f,740f,Color.rgb(198,119,72))
+        path(c,lightFern) {
+            it.moveTo(417f,764f);it.quadTo(502f,836f,590f,762f)
+            it.quadTo(532f,891f,504f,916f);it.quadTo(462f,856f,417f,764f)
+            it.close()
+        }
+        oval(c,447f,674f,559f,792f,color("#EDBF98"))
+        // Adult face, narrow at jaw rather than spherical baby-face.
+        path(c,color("#F0C19C")) {
+            it.moveTo(350f,326f)
+            it.cubicTo(364f,233f,423f,202f,515f,217f)
+            it.cubicTo(642f,222f,674f,328f,659f,463f)
+            it.cubicTo(651f,575f,601f,688f,525f,723f)
+            it.cubicTo(497f,736f,466f,730f,439f,711f)
+            it.cubicTo(372f,656f,336f,546f,342f,431f)
+            it.close()
+        }
+        // Subtle depth/shadow along one cheek.
         fill(Color.WHITE)
-        p.shader = LinearGradient(309f,330f,688f,720f,
-            Color.rgb(255,241,211),Color.rgb(250,193,145),Shader.TileMode.CLAMP)
-        c.drawOval(312f,273f,690f,727f,p)
-        p.shader=null
-
-        // Natural cheeks and expressive green eyes.
-        oval(c,328f,573f,418f,621f,Color.argb(65,225,108,105))
-        oval(c,593f,573f,676f,621f,Color.argb(65,225,108,105))
-        for (x in arrayOf(402f,600f)) {
-            oval(c,x-58f,479f,x+57f,567f,Color.rgb(95,63,47))
-            oval(c,x-51f,488f,x+50f,560f,Color.WHITE)
-            oval(c,x-33f,491f,x+35f,558f,deepGreen)
-            orb(c,x+3f,526f,20f,Color.rgb(18,48,35))
-            orb(c,x-15f,505f,13f,Color.WHITE)
-            orb(c,x+19f,542f,5f,Color.WHITE)
+        p.shader=LinearGradient(360f,280f,655f,626f,
+            Color.argb(120,255,242,210),Color.argb(40,175,77,55),Shader.TileMode.CLAMP)
+        c.drawOval(357f,245f,646f,710f,p);p.shader=null
+        // Two smaller almond eyes (NOT oversized round cartoon eyes).
+        for (x in arrayOf(430f,570f)) {
+            path(c,color("#563F32")) {
+                it.moveTo(x-40f,443f)
+                it.quadTo(x,407f,x+40f,441f)
+                it.quadTo(x,465f,x-40f,443f)
+                it.close()
+            }
+            oval(c,x-33f,430f,x+34f,458f,color("#FFF1DE"))
+            disk(c,x,444f,17f,color("#467D55"))
+            disk(c,x,444f,8f,color("#183F30"))
+            disk(c,x-7f,438f,5f,Color.WHITE)
+            fill(color("#785443"));p.style=Paint.Style.STROKE;p.strokeWidth=8f;p.strokeCap=Paint.Cap.ROUND
+            c.drawArc(x-42f,424f,x+42f,459f,188f,155f,false,p)
+            c.drawArc(x-45f,379f,x+45f,412f,195f,145f,false,p)
         }
-        // Nose and smile.
-        orb(c,502f,588f,7f,Color.rgb(219,138,111))
-        fill(Color.rgb(143,63,69))
-        p.style=Paint.Style.STROKE
-        p.strokeWidth=9f
-        p.strokeCap=Paint.Cap.ROUND
-        if (state=="Отвечаю") {
-            p.style=Paint.Style.FILL
-            c.drawOval(459f,621f,547f,658f,p)
-            oval(c,477f,640f,531f,659f,Color.rgb(242,127,128))
-        } else c.drawArc(457f,606f,546f,662f,8f,164f,false,p)
+        // Nose and a light, reserved smile.
+        fill(color("#CE927A"));p.style=Paint.Style.STROKE;p.strokeCap=Paint.Cap.ROUND
+        p.strokeWidth=5f;c.drawArc(480f,470f,519f,565f,350f,105f,false,p)
+        fill(color("#B66F6C"));p.style=Paint.Style.STROKE;p.strokeWidth=7f
+        c.drawArc(457f,573f,541f,615f,18f,143f,false,p)
+        if (state=="Отвечаю") oval(c,479f,600f,522f,614f,color("#9C5659"))
 
-        // Bright bangs and small front curls: face remains entirely visible.
-        shape(c,gold) {
-            it.moveTo(277f,441f)
-            it.cubicTo(255f,235f,403f,185f,515f,201f)
-            it.cubicTo(707f,203f,754f,334f,711f,454f)
-            it.cubicTo(655f,392f,638f,350f,608f,340f)
-            it.cubicTo(531f,433f,447f,387f,389f,335f)
-            it.cubicTo(371f,391f,321f,432f,277f,441f)
+        // Asymmetric swept fringe with leaf ornament, no antennae.
+        path(c,base) {
+            it.moveTo(329f,398f)
+            it.cubicTo(317f,205f,431f,146f,552f,168f)
+            it.cubicTo(651f,176f,712f,261f,697f,382f)
+            it.cubicTo(633f,331f,616f,280f,568f,266f)
+            it.cubicTo(503f,354f,408f,367f,329f,398f)
             it.close()
         }
-        shape(c,lightHair) {
-            it.moveTo(486f,204f)
-            it.cubicTo(360f,220f,293f,307f,312f,408f)
-            it.cubicTo(407f,380f,460f,330f,486f,204f)
+        path(c,glint) {
+            it.moveTo(364f,356f)
+            it.cubicTo(369f,225f,446f,178f,526f,176f)
+            it.cubicTo(486f,267f,444f,322f,364f,356f)
             it.close()
         }
-        shape(c,Color.rgb(255,207,108)) {
-            it.moveTo(506f,207f)
-            it.cubicTo(641f,208f,707f,312f,698f,401f)
-            it.cubicTo(615f,383f,556f,334f,506f,207f)
-            it.close()
-        }
+        // Hair strands and discrete foliage on the side, not ears.
+        fill(glint);p.style=Paint.Style.STROKE;p.strokeWidth=7f
+        c.drawArc(294f,298f,431f,817f,60f,91f,false,p)
+        c.drawArc(620f,257f,760f,835f,283f,98f,false,p)
+        leaf(c,650f,307f,49f,color("#4F9F69"))
+        leaf(c,686f,345f,65f,color("#2F7954"))
+        disk(c,668f,304f,9f,color("#E9C56B"))
 
-        // Living leafy crown instead of fox ears or a robotic propeller.
-        leaf(c,427f,253f,-34f,Color.rgb(64,159,80))
-        leaf(c,503f,232f,5f,Color.rgb(77,177,89))
-        leaf(c,579f,260f,36f,Color.rgb(27,127,73))
-        star(c,500f,264f,1.3f)
-        star(c,237f,467f,.65f)
-        star(c,774f,552f,.7f)
-        if (active) star(c,740f,250f,.65f+phase*.35f)
+        // Small state indicator near shoulder, changes only on real state.
+        if (moving) {
+            disk(c,715f,802f,13f+phase*6f,
+                if (state=="Слушаю") color("#3FB77B") else if (state=="Думаю") color("#ECB35C") else color("#D98870"))
+        }
     }
-
-    override fun onDraw(canvas: Canvas) {
+    override fun onDraw(canvas:Canvas) {
         super.onDraw(canvas)
-        if (width<=0 || height<=0) return
-        // Fit a square illustrated frame into 84% of available height and
-        // keep a dedicated lower status strip. No clipping or bitmap offsets.
-        val size = min(width*.84f,height*.84f)
-        val bob = if (active) (phase-.5f)*size*.018f else 0f
+        if (width<=0||height<=0) return
+        val size=min(width*.88f,height*.86f)
+        val drift=if (moving) (phase-.5f)*size*.014f else 0f
         canvas.save()
-        canvas.translate((width-size)/2f,(height-size)*.12f+bob)
+        canvas.translate((width-size)/2f,(height-size)*.10f+drift)
         canvas.scale(size/1000f,size/1000f)
-        muse(canvas)
+        portrait(canvas)
         canvas.restore()
-        fill(Color.rgb(46,100,68))
-        p.textAlign=Paint.Align.CENTER
+        fill(color("#3B7658"));p.textAlign=Paint.Align.CENTER
         p.typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL)
-        p.textSize=min(14f*resources.displayMetrics.scaledDensity,height*.085f)
-        canvas.drawText(state.take(32),width/2f,height*.975f,p)
+        p.textSize=min(14f*resources.displayMetrics.scaledDensity,height*.08f)
+        canvas.drawText(state.take(28),width/2f,height*.97f,p)
     }
 }
