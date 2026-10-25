@@ -22,17 +22,8 @@ internal object LanaCoreClient {
             if (code == 401 || code == 403) return "Сервер отклонил ключ доступа.\n$unknown"
             if (code == 404) return "Сервер не поддерживает подробные статусы. Совместимость не подтверждена.\n$unknown"
             if (code != 200) return "Проверка не завершена (HTTP $code).\n$unknown"
-            val body = conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
-                val buffer = CharArray(8193)
-                var count = 0
-                while (count < buffer.size) {
-                    val n = reader.read(buffer, count, buffer.size - count)
-                    if (n == -1) break
-                    count += n
-                }
-                require(count <= 8192) { "Ответ сервера слишком большой" }
-                String(buffer, 0, count)
-            }
+            // Bound bytes before decoding; response may have no Content-Length.
+            val body = conn.inputStream.use { LanaHttpBody.readUtf8Bounded(it, 8_192) }
             val json = JSONObject(body)
             if (json.optString("schema") != "lana.connections.v1") return "Неизвестный формат статуса.\n$unknown"
             val items = json.optJSONObject("connections")

@@ -33,6 +33,9 @@ class VoicePreviewTests(unittest.TestCase):
         gradle = (path / "app/build.gradle.kts").read_text()
         self.assertIn('applicationId = "ai.dreibus.lanalive.voicepreview"', gradle)
         self.assertTrue((path / "app/src/main/java/ai/dreibus/lanalive/LanaChatClient.kt").exists())
+        helper = path / "app/src/main/java/ai/dreibus/lanalive/LanaHttpBody.kt"
+        self.assertTrue(helper.exists(), "Voice build must include bounded HTTPS decoder")
+        self.assertIn("LanaHttpBody.readUtf8Bounded", (path / "app/src/main/java/ai/dreibus/lanalive/LanaChatClient.kt").read_text())
 
     def test_original_archive_unchanged(self):
         before=SRC.read_bytes()

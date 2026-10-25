@@ -16,6 +16,11 @@ class LegacyPreviewTests(unittest.TestCase):
             self.assertIn('LanaWorkspace.contextNotes()',s)
             self.assertIn('LanaRecognitionTurn()',s)
             self.assertIn('connectionStatusText',s)
+            src = out/'app/src/main/java/ai/dreibus/lanalive'
+            client = (src/'LanaChatClient.kt').read_text()
+            self.assertIn('LanaHttpBody.readUtf8Bounded',client)
+            self.assertIn('errorStream?.use',client)
+            self.assertTrue((src/'LanaHttpBody.kt').exists())
             build=(out/'app/build.gradle.kts').read_text()
             self.assertIn('versionCode = 7',build)
             self.assertIn('LANA_RELEASE_SIGNING_REQUIRED',build)

@@ -40,10 +40,8 @@ internal object LanaChatClient {
             val status = conn.responseCode
             if (status == 401 || status == 403) throw IOException("Сервер отклонил ключ доступа")
             if (status != 200) throw IOException("Сервер ИИ временно недоступен (HTTP $status)")
-            val result = conn.inputStream.bufferedReader(Charsets.UTF_8).use {
-                it.readText()
-            }
-            if (result.length > 12_000) throw IOException("Ответ сервера слишком большой")
+            // Bound the response *before* allocating or decoding it.
+            val result = conn.inputStream.use { LanaHttpBody.readUtf8Bounded(it, 12_000) }
             val answer = JSONObject(result).optString("answer", "").trim()
             if (answer.isBlank()) throw IOException("Получен пустой ответ")
             return answer.take(5000)

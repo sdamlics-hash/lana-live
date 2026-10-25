@@ -80,30 +80,12 @@ internal object LanaChatClient {
             stage = "body"
             if (status == 401 || status == 403) throw LanaChatFailure("Сервер отклонил ключ доступа. Проверь подключение в настройках.")
             if (status == 422) {
-                val safeBody = conn.errorStream?.bufferedReader(Charsets.UTF_8)?.use { reader ->
-                    val chars = CharArray(12001)
-                    var count = 0
-                    while (count < chars.size) {
-                        val n = reader.read(chars, count, chars.size-count)
-                        if (n < 0) break
-                        count += n
-                    }
-                    if (count > 12000) "" else String(chars,0,count)
-                }.orEmpty()
+                // Validation errors are untrusted input too. Never read them unbounded.
+                val safeBody = conn.errorStream?.use { LanaHttpBody.readUtf8Bounded(it, 12_000) }.orEmpty()
                 throw LanaChatFailure(LanaChatProtocol.validationFailure(safeBody))
             }
             if (status != 200) throw LanaChatFailure("Сервер ИИ вернул HTTP $status. Ответ не получен.")
-            val result = conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
-                val buffer = CharArray(12001)
-                var count = 0
-                while (count < buffer.size) {
-                    val n = reader.read(buffer, count, buffer.size - count)
-                    if (n == -1) break
-                    count += n
-                }
-                if (count > 12000) throw LanaChatFailure("Ответ сервера превышает допустимый размер.")
-                String(buffer, 0, count)
-            }
+            val result = conn.inputStream.use { LanaHttpBody.readUtf8Bounded(it, 12_000) }
             cancellation.checkActive()
             return LanaChatProtocol.answer(result, legacyMode)
         } catch (failure: java.net.SocketTimeoutException) {
