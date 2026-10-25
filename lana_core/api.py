@@ -57,6 +57,8 @@ def make_handler(queue, token, chat_service=None):
             if path == "/v1/connections":
                 connections = chat_service.connection_status() if chat_service is not None else {
                     "openai_api": {"state": "not_configured"},
+                    "claude_api": {"state": "not_configured"},
+                    "manus_api": {"state": "not_configured"},
                     "chatgpt_history": {"state": "not_connected"},
                     "lana_memory": {"state": "unavailable", "scope": "server"}}
                 self._json(200, {"schema": "lana.connections.v1", "connections": connections,
