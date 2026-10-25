@@ -15,7 +15,7 @@ internal class LanaProjectMemory(raw: String, private val write: (String)->Boole
         const val MAX_FACTS = 100
         const val MAX_BYTES = 120000
         private val saveCommand=Regex("""^запомни для проекта\s+(.{1,60}?)\s*[:—-]\s*(.+)$""",RegexOption.IGNORE_CASE)
-        private val readCommand=Regex("""^(?:что ты помнишь (?:по|о) проекту|прочитай память проекта|покажи память проекта)\s+(.+)$""",RegexOption.IGNORE_CASE)
+        private val readCommand=Regex("""^(?:что ты помнишь (?:по проекту|о проекте)|прочитай память проекта|покажи память проекта)\s+(.+)$""",RegexOption.IGNORE_CASE)
         private val findCommand=Regex("""^найди в памяти проекта\s+(.{1,60}?)\s*[:—-]\s*(.+)$""",RegexOption.IGNORE_CASE)
         fun clean(value:String):String = value.trim().replace(Regex("""\s+""")," ")
             .replace(Regex("""^лана[, ]+""",RegexOption.IGNORE_CASE),"").trim().trimEnd('.', '?', '!')
@@ -23,7 +23,7 @@ internal class LanaProjectMemory(raw: String, private val write: (String)->Boole
             val q=clean(text)
             return saveCommand.matches(q) || readCommand.matches(q) || findCommand.matches(q)
                 || listOf("запомни для проекта","покажи память проекта","прочитай память проекта",
-                    "что ты помнишь по проекту","что ты помнишь о проекту","найди в памяти проекта")
+                    "что ты помнишь по проекту","что ты помнишь о проекте","найди в памяти проекта")
                     .any { q.lowercase(Locale.ROOT).startsWith(it) }
                 || q.lowercase(Locale.ROOT) in setOf("покажи проекты памяти","какие проекты ты помнишь")
         }
