@@ -1,7 +1,7 @@
-# LANA 1039 self-review — 2026-10-24
-Type: self-review, NOT independent reviewer verification.
-Actual emulator screenshot was retrieved from CI artifact LANA-PRESENCE-PREVIEW for run #40131012419. Image shows a complete adult portrait with hair, face and shoulders framed in a rounded rectangle; no ear-only/cropped rendering. Text and button layout remain visible.
-Code diff reviewed: replaces only companion drawing with bundled local WebP resource; patch_v44 resource-copy wiring. No cloud/image fetch, no audio/voice recognizer changes.
-CI: core Android validation #40131012435 SUCCESS; full voice-repair APK and emulator persistence #40131012419 SUCCESS. No physical audio or visual test of 1039 yet.
-Remaining risks: user's subjective visual acceptance, specific Samsung density/scale. Image has a warm scenery background, not full transparency.
-Release gate: signed APK with same package/cert and version >1038; then explicit user in-app update and Samsung acceptance. Never uninstall/clear app data.
+# LANA 1040 review — self-review only
+- Code reviewed: fresh logo is Canvas-native above a bundled 1039 adult portrait, with listening/thinking/speaking motion; one portrait null fallback. No pixel art or fox patch.
+- Provider status is read-only, unauthenticated health status alone never proves OpenAI works, Claude/Manus have no actual runtime connector in deployed LANA and must show as not configured/unverified. Legacy server lacking new fields must not become connected.
+- Team prompt follows plan → change → actual test → correction → checkpoint; no claim that CI alone proves live Android/API behavior.
+- Defect caught and corrected pre-CI: total prompt exceeded 2400 chars in first draft, compacted contexts while preserving tests and capability honesty.
+- Preview Android screenshot: pending. Live physical Samsung test: pending. Independent review: not done. API/MCP/Claude/Manus real integration: not done.
+- Backout: stable 1039 unchanged; release candidate only merged when all relevant test jobs green and screenshot checked. No uninstall/downgrade recommended.
