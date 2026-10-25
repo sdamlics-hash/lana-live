@@ -69,6 +69,14 @@ def patch_archive(zip_path, destination, client_source):
     ET.fromstring(ui)
     layout.write_text(ui, encoding="utf-8")
     shutil.copyfile(client_source, activity.with_name("LanaCoreClient.kt"))
+    # The same bounded decoder is used by status and voice clients.
+    shutil.copyfile(Path(__file__).resolve().parent / "src" / "LanaHttpBody.kt",
+                    activity.with_name("LanaHttpBody.kt"))
+    # Compiled and executed by the V3.6+ Kotlin/JUnit workflow.
+    test_dir = destination / "app/src/test/java/ai/dreibus/lanalive"
+    test_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(Path(__file__).resolve().parent / "tests" / "LanaHttpBodyTest.kt",
+                    test_dir / "LanaHttpBodyTest.kt")
 
     kts = gradle.read_text(encoding="utf-8")
     kts = replace_once(kts, 'applicationId = "ai.dreibus.lanalive"',
