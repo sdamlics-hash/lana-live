@@ -22,6 +22,9 @@ internal class LanaProjectMemory(raw: String, private val write: (String)->Boole
         fun matches(text:String):Boolean {
             val q=clean(text)
             return saveCommand.matches(q) || readCommand.matches(q) || findCommand.matches(q)
+                || listOf("запомни для проекта","покажи память проекта","прочитай память проекта",
+                    "что ты помнишь по проекту","что ты помнишь о проекту","найди в памяти проекта")
+                    .any { q.lowercase(Locale.ROOT).startsWith(it) }
                 || q.lowercase(Locale.ROOT) in setOf("покажи проекты памяти","какие проекты ты помнишь")
         }
         fun validate(raw:String):String {
@@ -87,6 +90,8 @@ internal class LanaProjectMemory(raw: String, private val write: (String)->Boole
             return if(rows.isEmpty()) "В памяти проекта "+project+" совпадений нет."
                 else "В проекте "+project+" найдено: "+rows.size+". "+rows.take(5).joinToString("; ") { it.getString("text") }
         }
+        if(q.lowercase(Locale.ROOT) !in setOf("покажи проекты памяти","какие проекты ты помнишь"))
+            return "Команда памяти проекта неполная. Назови проект и текст. Ничего не сохранено."
         val projects=(0 until facts.length()).map { facts.getJSONObject(it).getString("project") }
             .distinctBy { it.lowercase(Locale.ROOT) }
         return if(projects.isEmpty()) "В памяти проектов пока нет подтверждённых фактов."
