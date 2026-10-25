@@ -3,9 +3,9 @@ from pathlib import Path
 def install(out: Path, root: Path):
     src = out/'app/src/main/java/ai/dreibus/lanalive'
     tests = out/'app/src/test/java/ai/dreibus/lanalive'
-    for name in ('LanaDialogueStorage.kt', 'LanaCoordinator.kt'):
+    for name in ('LanaDialogueStorage.kt', 'LanaCoordinator.kt', 'LanaProjectMemory.kt', 'LanaProjectMemoryStore.kt', 'LanaProjectMemoryBackup.kt'):
         (src/name).write_text((root/'android_team/src'/name).read_text())
-    for name in ('LanaDurableHistoryTest.kt', 'LanaCoordinatorTest.kt'):
+    for name in ('LanaDurableHistoryTest.kt', 'LanaCoordinatorTest.kt', 'LanaProjectMemoryTest.kt', 'LanaProjectMemoryBackupTest.kt'):
         (tests/name).write_text((root/'android_team/tests'/name).read_text())
     p = src/'MainActivity.kt'
     s = p.read_text()
@@ -24,6 +24,12 @@ def install(out: Path, root: Path):
                     legacyDialogHistory.storageWarning?.let { voiceDiagnostic(it) }
                 }''')
     change('    private fun askFromLana(question: String) {', '''    private fun askFromLana(question: String) {
+        if (LanaProjectMemory.matches(question)) {
+            val reply = LanaProjectMemoryGateway.handle(this,question)
+                ?: "Команда памяти проектов не распознана. Ничего не изменено."
+            speakFromLana(reply)
+            return
+        }
         if (LanaCoordinator.handles(question)) {
             chatRequestStartedAt = 0L
             try {
