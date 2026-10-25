@@ -65,7 +65,7 @@ def install(out: Path, root: Path):
     panel.write_text(text)
     # Final UI changes follow the generator so the same navigation is used by all APK builds.
     workspace = src/'LanaWorkspace.kt'
-    ws = workspace.read_text().replace('        addPanel(settings)', '''        settings.addView(text("Контекст беседы хранится зашифрованным только на этом устройстве: последние 8 пар реплик, до 16000 символов. Он привязан к серверу, аккаунту и разговору. Новый разговор начинает контекст заново. Это не вся история ChatGPT."))
+    ws = workspace.read_text().replace('        addPanel(settings)', '''        settings.addView(text("Контекст беседы хранится зашифрованным только на этом устройстве: последние 8 пар реплик, до 16000 символов. Он привязан к серверу, аккаунту и разговору. Новый разговор начинает контекст заново. Это не вся история ChatGPT."))\n        settings.addView(text("Память проектов v2: сохраняется отдельно, зашифрована на Samsung, факты создаются только после твоей команды «Запомни для проекта ...». Дата записи указывается в UTC. Экспортируемая по твоей кнопке копия JSON НЕ зашифрована — храни её безопасно. Claude/Manus и история ChatGPT автоматически доступа к ней не имеют."))
         addPanel(settings)''')
     workspace.write_text(ws)
     typed = src/'LanaTypedDialogue.kt'
