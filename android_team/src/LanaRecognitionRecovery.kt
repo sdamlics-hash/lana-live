@@ -9,8 +9,15 @@ internal class LanaRecognitionRecovery {
     private var silenceCount = 0
     private var successCount = 0
     private var lastCode: Int? = null
-    fun report(): String = "Распознанных фраз: $successCount. Ожиданий без фразы: $silenceCount. Ошибок службы: $errorCount. Последний код: ${lastCode ?: "нет"}."
-    fun successfulPhrase() { successCount++; reset() }
+    private var disconnects = 0
+    private var restoredAfterDisconnect = 0
+    private var awaitingRecovery = false
+    fun report(): String = "Распознанных фраз: $successCount. Ожиданий без фразы: $silenceCount. Ошибок службы: $errorCount. Последний код: ${lastCode ?: "нет"}. Отключений распознавания (11): $disconnects. Успешных фраз после 11: $restoredAfterDisconnect."
+    fun successfulPhrase() {
+        successCount++
+        if (awaitingRecovery) { restoredAfterDisconnect++; awaitingRecovery = false }
+        reset()
+    }
     fun reset() { failures = 0; silences = 0 }
     fun error(code: Int): Decision {
         if (code == 6 || code == 7) {
@@ -19,6 +26,7 @@ internal class LanaRecognitionRecovery {
             return Decision("Жду твою фразу", 900L, diagnostic = silences == 1)
         }
         lastCode = code
+        if (code == 11) { disconnects++; awaitingRecovery = true }
         errorCount++
         silences = 0
         failures = (failures + 1).coerceAtMost(6)

@@ -18,6 +18,21 @@ class LanaRecognitionRecoveryTest {
         for (code in listOf(3,8,11)) assertTrue(LanaRecognitionRecovery().error(code).recreate)
         assertEquals(30000L, LanaRecognitionRecovery().error(10).delayMs)
     }
+    @Test fun disconnectReportCountsOnlyActualRecoveredPhrasesWithoutTranscripts() {
+        val r=LanaRecognitionRecovery()
+        assertTrue(r.report().contains("Отключений распознавания (11): 0"))
+        assertTrue(r.error(11).recreate)
+        assertTrue(r.error(11).recreate)
+        assertTrue(r.report().contains("Отключений распознавания (11): 2"))
+        assertTrue(r.report().contains("Успешных фраз после 11: 0"))
+        r.successfulPhrase()
+        assertTrue(r.report().contains("Успешных фраз после 11: 1"))
+        r.successfulPhrase()
+        assertTrue(r.report().contains("Успешных фраз после 11: 1"))
+        r.error(2)
+        assertTrue(r.report().contains("Отключений распознавания (11): 2"))
+        assertFalse(r.report().contains("secret"))
+    }
     @Test fun repeatedNetworkLossRecreatesRecognizerAndSuccessfulPhraseClearsFailureStreak() {
         for (code in listOf(1,2)) {
             val policy = LanaRecognitionRecovery()

@@ -54,6 +54,34 @@ class LanaLocalWorkspaceTest {
         assertTrue(ask("Измени заметку 99: Нет")!!.contains("нет"))
         assertEquals(before,saved)
     }
+    @Test fun failedDiskCommitRollsBackInMemoryAndAllowsSafeRetry() {
+        var saved = empty
+        var writable = false
+        val store = LanaLocalWorkspace(saved) { value -> if (writable) { saved=value; true } else false }
+        assertTrue(store.handle("Запомни: несохранённый секрет")!!.contains("Не удалось"))
+        assertEquals("Сохранённых заметок пока нет.",store.handle("Что ты запомнила?"))
+        writable=true
+        assertTrue(store.handle("Запомни: подтверждённая запись")!!.contains("Запомнила"))
+        assertTrue(store.handle("Что ты запомнила?")!!.contains("подтверждённая"))
+        assertFalse(store.handle("Что ты запомнила?")!!.contains("несохранённый"))
+        assertFalse(saved.contains("несохранённый"))
+    }
+    @Test fun thrownStorageExceptionIsHandledWithoutPhantomMemory() {
+        val store=LanaLocalWorkspace(empty) { throw IllegalStateException("disk-private") }
+        assertTrue(store.handle("Добавь задачу: пробный пункт")!!.contains("Не удалось"))
+        assertEquals("Незавершённых задач нет.",store.handle("Прочитай мои задачи"))
+    }
+    @Test fun incompleteVoiceOperationsNeverBecomeModelRequestsOrWrites() {
+        val store=LanaLocalWorkspace(empty) { fail("must not save");false }
+        for (q in listOf("Лана, запомни", "Создай задачу", "Сохрани заметку",
+            "Найди заметку", "Измени задачу", "Заверши задачу")) {
+            assertTrue(q,LanaLocalWorkspace.matches(q))
+            val reply=store.handle(q)
+            assertNotNull(q,reply)
+            assertTrue(q,reply!!.contains("Ничего"))
+        }
+        assertNull(store.handle("Расскажи о современных технологиях памяти"))
+    }
     @Test fun editsDoNotClaimSuccessWhenStorageFails() {
         val data="{\"tasks\":[],\"notes\":[\"Исходный текст\"]}"
         assertTrue(LanaLocalWorkspace(data) { false }.handle("Измени заметку 1: Новый текст")!!.contains("Не удалось"))

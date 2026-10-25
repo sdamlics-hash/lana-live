@@ -7,9 +7,10 @@ import java.util.UUID
 
 /** Explicit local intents. Notes are never automatically selected for API context. */
 internal class LanaLocalWorkspace(raw: String, private val write: (String) -> Boolean) {
-    private val root = JSONObject(raw)
-    private val tasks = root.getJSONArray("tasks")
-    private val notes = root.getJSONArray("notes")
+    private var root = JSONObject(raw)
+    private var committed = root.toString()
+    private val tasks get() = root.getJSONArray("tasks")
+    private val notes get() = root.getJSONArray("notes")
     init {
         require(tasks.length() <= 100 && notes.length() <= 100)
         for (i in 0 until tasks.length()) {
@@ -19,10 +20,18 @@ internal class LanaLocalWorkspace(raw: String, private val write: (String) -> Bo
         }
         for (i in 0 until notes.length()) require(notes.getString(i).length in 1..3000)
     }
-    private fun save(): String? = if (write(root.toString())) null else "Не удалось сохранить изменение. Проверь память во вкладке приложения."
+    private fun save(): String? {
+        val candidate = root.toString()
+        val saved = try { write(candidate) } catch (_: Exception) { false }
+        if (saved) { committed = candidate; return null }
+        root = JSONObject(committed)
+        return "Не удалось сохранить изменение. Проверь память во вкладке приложения."
+    }
     fun handle(words: String): String? {
         val original = normalize(words)
         val q = original.lowercase(Locale.ROOT).replace("почитай", "прочитай").replace("зачитай", "прочитай").trimEnd('.', '?', '!')
+        if (q in setOf("запомни", "сохрани заметку", "добавь задачу", "создай задачу", "запиши задачу"))
+            return "Нужен текст заметки или задачи. Ничего не сохранено."
         val note = Regex("^(?:запомни|сохрани заметку)\\s*[:,—-]?\\s+(.+)$", RegexOption.IGNORE_CASE).matchEntire(original)?.groupValues?.get(1)?.trim()
         val task = Regex("^(?:добавь задачу|создай задачу|запиши задачу)\\s*[:,—-]?\\s+(.+)$", RegexOption.IGNORE_CASE).matchEntire(original)?.groupValues?.get(1)?.trim()
         if (note != null || task != null) {
@@ -96,6 +105,7 @@ internal class LanaLocalWorkspace(raw: String, private val write: (String) -> Bo
             }
             return save() ?: "Изменение сохранено на планшете."
         }
+        if (matches(original)) return "Команда неполная. Ничего не изменено. Повтори её целиком."
         return null
     }
     companion object {
@@ -103,7 +113,7 @@ internal class LanaLocalWorkspace(raw: String, private val write: (String) -> Bo
 
         fun matches(words: String): Boolean {
             val q = normalize(words).lowercase(Locale.ROOT).replace("почитай", "прочитай").replace("зачитай", "прочитай").trim().replace(Regex("^лана[, ]+"), "")
-            return listOf("запомни ", "запомни:", "сохрани заметку", "добавь задачу", "создай задачу", "запиши задачу", "заверши задачу", "задача выполнена", "верни задачу", "найди задачу", "найди заметку", "измени задачу", "измени заметку").any { q.startsWith(it) } || q.trimEnd('.', '?', '!') in setOf("какие у меня задачи", "прочитай мои задачи", "покажи мои задачи", "что ты запомнила", "прочитай мои заметки", "прочитай память", "прочитай выполненные задачи", "покажи выполненные задачи", "сколько у меня задач", "сводка задач", "прочитай последнюю заметку", "последняя заметка", "прочитай все заметки", "покажи мои заметки", "помощь", "что ты умеешь", "какие команды ты знаешь", "следующая задача", "сколько у меня заметок")
+            return listOf("запомни ", "запомни:", "сохрани заметку", "добавь задачу", "создай задачу", "запиши задачу", "заверши задачу", "задача выполнена", "верни задачу", "найди задачу", "найди заметку", "измени задачу", "измени заметку").any { q.startsWith(it) } || q.trimEnd('.', '?', '!') in setOf("какие у меня задачи", "прочитай мои задачи", "покажи мои задачи", "что ты запомнила", "прочитай мои заметки", "прочитай память", "прочитай выполненные задачи", "покажи выполненные задачи", "сколько у меня задач", "сводка задач", "прочитай последнюю заметку", "последняя заметка", "прочитай все заметки", "покажи мои заметки", "запомни", "сохрани заметку", "добавь задачу", "создай задачу", "запиши задачу", "помощь", "что ты умеешь", "какие команды ты знаешь", "следующая задача", "сколько у меня заметок")
         }
     }
 }
