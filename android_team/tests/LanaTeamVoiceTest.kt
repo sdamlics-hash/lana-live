@@ -56,7 +56,7 @@ class LanaTeamVoiceTest {
     @Test fun CapabilityRepliesDoNotClaimChatOrOtherAgentAccess() {
         assertTrue(LanaTeamVoice.localReply("Кто в твоей команде?")!!.contains("не подключены"))
         assertTrue(LanaTeamVoice.localReply("Ты подключена к ChatGPT?")!!.contains("не управляю"))
-        assertTrue(LanaTeamVoice.localReply("Ты работаешь круглосуточно?")!!.contains("не подтверждены"))
+        assertTrue(LanaTeamVoice.localReply("Ты работаешь круглосуточно?")!!.contains("24/7 не подтверждена"))
         assertNull(LanaTeamVoice.localReply("Как написать приложение"))
         assertTrue(LanaTeamVoice.wantsLastReply("Прочитай последний ответ команды!"))
         assertTrue(LanaTeamVoice.wantsLastReply("Ладно Прочитай последний ответ команды"))
