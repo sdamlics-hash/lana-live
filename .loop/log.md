@@ -1,10 +1,10 @@
-# LANA 1039 — 2026-10-24
-Baseline: installed stable 1038 at d395346a95d91acd7d2f2f51a8cd8c37b8e81884.
-- User rejected chibi character based on physical Samsung screenshot.
-- Isolated branch work/lana-1039-avatar-redesign and PR #44.
-- Replaced old drawn model with a bundled, original portrait WebP in android_team/assets/lana_avatar_1039.webp (9,514 B; blob 14e64be0aba1a13f401b497037e18ccd795a8130).
-- UI now renders this local asset as rounded portrait, keeping voice state indicator and gentle motion; no downloaded images or external URLs at runtime.
-- android_speech/patch_v44.py now copies the resource into drawable-nodpi before compiling.
-- Current Android package CI #40131012435: SUCCESS. Voice Repair runner #40131012419: SUCCESS (Kotlin tests, emulator task/memory checks, screenshot artifact LANA-PRESENCE-PREVIEW).
-- Self inspected emulator screenshot: whole face and shoulders visible, no occluding halo; layout and buttons preserved. No physical Samsung confirmation yet.
-- Voice/recognition code and server untouched. Stable 1038 preserved for corrective rollback.
+# LANA 1040 — work log (2026-10-25)
+- Baseline: stable 1039, commit 7a0e22631b8d6be9c735a6b5fa3699c1a39515a2.
+- User asks multi-change improvements, real functional checks, truthful AI/provider connections, preserve development loop, do not patch one tiny change at a time.
+- Added a vector leaf-orbit LANA emblem atop bundled adult portrait, state-based subtle animation, portrait-missing fallback; no external runtime image downloads. Previous LANA 1039 portrait retained.
+- Extended authenticated /v1/connections schema optional claude_api and manus_api as NOT CONFIGURED in code (no provider transport exists), optional client backwards compatibility reports UNKNOWN/UNVERIFIED on old servers.
+- Added backend no-model diagnostic test and Android status tests. No keys, request prompts or memory contents in connection reports.
+- Team panel explains how to check connection in Settings; API request is not current ChatGPT conversation.
+- Updated team/dialogue prompts with quality loop, truthful limits and Samsung caveats. Self-review found both prompts exceeding transport length after first edit; rewrote them shorter. Approx max lengths checked before CI: Team 2087/2400, dialogue 2357/2400. Real unit tests still required.
+- Existing signed release/tag 1039 preserved; no server deployment, trading bots, SSH, secrets, package-signing or installed data modified.
+- Pending: PR and CI, emulator screenshot and preservation tests, then physical Samsung check.

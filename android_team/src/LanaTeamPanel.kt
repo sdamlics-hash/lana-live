@@ -39,7 +39,7 @@ internal class LanaTeamPanel(private val activity: Activity) {
             if (activity.isFinishing || activity.isDestroyed) return
             panel.removeAllViews()
             panel.addView(label("Лана — координатор команды"))
-            panel.addView(label("OpenAI: отправка через существующий сервер Ланы. Это API-помощник, не текущий чат ChatGPT. Результат требует проверки.\nClaude: не подключён.\nManus: не подключён."))
+            panel.addView(label("OpenAI: команда передаётся API-помощнику через сервер, если связь доступна. Это не текущий чат ChatGPT.\nClaude и Manus: не подключены к команде.\nДля проверки подключения без вызова модели открой «Настройки» → «Проверить связь с ядром». Отправка задания и подтверждение результата — отдельные действия."))
             panel.addView(label("Текст задания и выбранные тобой заметки передаются серверу и OpenAI при нажатии кнопки. Ответ не означает выполнения внешних действий."))
             panel.addView(Button(activity).apply {
                 text = "Проверить компоненты Ланы"

@@ -37,7 +37,7 @@ internal object LanaCoreClient {
             if (json.optString("schema") != "lana.connections.v1") return "Неизвестный формат статуса.\n$unknown"
             val items = json.optJSONObject("connections")
             fun state(name: String) = items?.optJSONObject(name)?.optString("state", "unknown") ?: "unknown"
-            return "Сервер отвечает.\n" + LanaConnectionStatus.render(state("openai_api"), state("chatgpt_history"), state("lana_memory"))
+            return "Сервер отвечает.\n" + LanaConnectionStatus.render(state("openai_api"), state("chatgpt_history"), state("lana_memory"), state("claude_api"), state("manus_api"))
         } finally { conn.disconnect() }
     }
 }

@@ -42,6 +42,15 @@ class ConnectionsTests(unittest.TestCase):
             self.assertEqual(payload['connections']['chatgpt_history']['state'],'not_connected')
         self.assertEqual(self.calls,[])
         self.assertEqual(self.chat.memory.all()[0]['value'],'PRIVATE_MEMORY')
+    def test_team_provider_diagnostics_are_explicit_and_never_use_model_calls(self):
+        for _ in range(2):
+            code, payload = self.request('/v1/connections')
+            self.assertEqual(code, 200)
+            self.assertEqual(payload['connections']['claude_api']['state'], 'not_configured')
+            self.assertEqual(payload['connections']['manus_api']['state'], 'not_configured')
+        self.assertEqual(self.calls, [])
+        self.assertNotIn('fake-private-key', json.dumps(payload))
+
     def test_mock_success_never_becomes_real_connected(self):
         self.chat.answer(str(uuid.uuid4()),'Привет')
         self.assertEqual(self.chat.connection_status()['openai_api']['state'],'test_mode')
