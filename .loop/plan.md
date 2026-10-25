@@ -1,11 +1,9 @@
-# LANA 1041 coordinated improvements — 2026-10-25
-Baseline: signed stable 1040, release lana-stable-1040, commit 717eb2340777c38d6929f6dfa4f06a16b8d05d46. Existing installed build not inferred from GitHub; no uninstall or data changes.
-User objective: evolving LANA as one Android app closer to a powerful, truthful voice assistant with seamless repeat turns, background listening, memory, coordinated AI team and live companion.
-Batch:
-1. Fix stale voice capability statement: Samsung has already confirmed several successive screen-off turns, but not 24/7. Don't claim fully stable service.
-2. Guard explicit spoken assignments to Claude/Manus while unconnected, with clear feedback and no OpenAI provider request or phantom task; retain explicit OpenAI team task dispatch and ChatGPT-history boundary.
-3. Improve companion voice-phase visual expression with listening/speaking indicators, preserve current adult portrait and green leaf logo.
-4. Add unit regression tests for truthful provider commands, voice state visuals via build/emulator snapshot, dialogue and saved data.
-Acceptance before merge: core+Android+voice CI green, emulator persistence screenshot inspected, no unintentional provider dispatch, original 1040 published APK intact. On Samsung after update user verifies voice loops with screen off, logo display and provider boundary. Android code 11 still requires independent physical confirmation; do not invent a fix.
-Loop: plan→implement→run factual checks→repair issues (max 5 rounds)→checkpoint.
-Rollback: signed 1040 tagged and untouched; same signing identity, no app removal/downgrade; forward correction if necessary. Never change server or GOLD/KRAKEN without separate authorization.
+# LANA 1042 — 2026-10-25: voice continuity, memory honesty, recovery evidence
+Starting signed release: lana-stable-1041, commit 4a328243f5e33b01fe735d1b27ec37da152c1563. Preserve APK signing and Android saved data, no uninstall, no VM/trading changes.
+Goal: three independent meaningful improvements in one batch:
+1. Robust assembly of multiple final speech segments from Android, without repeating overlapping words/phrases in model requests. Do not drop unrelated or legitimately repeated words. Preserve >1400ms continuation behavior.
+2. Incomplete or malformed local notes/tasks commands remain local and explicitly report NOT SAVED/NOT DONE rather than falling through to API as if an action happened. Keep existing memory schema and backup.
+3. Diagnostic proof for Android recognizer disconnect code 11: counters for code11 events and actual recognized utterances after disconnect. Recovery code itself stays bounded; do not claim root cause solved.
+Acceptance: Kotlin unit tests on normal, overlapping, missing command and storage errors; Android builds, existing tests all pass, emulator task/memory persistence, inspect screenshot, signing identity verified; no silent provider requests for incomplete local commands. Samsung verification: ten screen-off utterances and copy diagnostic, compare code11 counts and restoration.
+Quality loop: plan with checks→implementation→run evidence→fix→record checkpoint; stop/replan after fifth round or repeated cause.
+Rollback: original 1041 release retained, publish via same signed in-app update only after checks. Not validated: 24/7 Samsung, real Claude/Manus, live OpenAI API. Do not pretend otherwise.
