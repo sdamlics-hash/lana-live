@@ -143,6 +143,8 @@ class ChatService:
         except sqlite3.Error:
             memory_state = "unavailable"
         return {"openai_api": {"state": state},
+                "claude_api": {"state": "not_configured"},
+                "manus_api": {"state": "not_configured"},
                 "chatgpt_history": {"state": "not_connected"},
                 "lana_memory": {"state": memory_state, "scope": "server"}}
 
