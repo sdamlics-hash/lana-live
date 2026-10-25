@@ -29,6 +29,16 @@ class LanaProjectMemoryTest {
         }
         assertTrue(LanaProjectMemory.matches("Лана, покажи память проекта GOLD"))
     }
+    @Test fun incompleteProjectCommandsAreHandledLocallyAndNeverSaved() {
+        val commands=listOf("Запомни для проекта Лана", "Покажи память проекта",
+            "Что ты помнишь о проекте", "Найди в памяти проекта GOLD")
+        for(q in commands) {
+            assertTrue(q,LanaProjectMemory.matches(q))
+            val result=LanaProjectMemory(LanaProjectMemory.EMPTY,{ fail("no writes");false }).handle(q)
+            assertTrue(q,result!!.contains("Ничего не сохранено"))
+        }
+        assertTrue(LanaProjectMemory.matches("Что ты помнишь о проекте Лана"))
+    }
     @Test fun noPhantomFactAfterFailedWriteAndRetry() {
         var data=LanaProjectMemory.EMPTY
         var writable=false
