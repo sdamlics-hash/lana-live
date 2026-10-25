@@ -4,7 +4,8 @@ import java.net.URL
 
 /** Status statements describe evidence, never infer connectivity from a stored key. */
 internal object LanaConnectionStatus {
-    fun render(api: String, history: String, memory: String): String {
+    fun render(api: String, history: String, memory: String,
+               claude: String = "unknown", manus: String = "unknown"): String {
         val apiLabel = when (api) {
             "verified_recently" -> "подключён на момент проверки: успешный ответ за последние 5 минут"
             "not_configured" -> "не настроен"
@@ -18,7 +19,13 @@ internal object LanaConnectionStatus {
             "unavailable" -> "недоступна"
             else -> "не проверена"
         }
-        return "OpenAI API — $apiLabel\nИстория ChatGPT — $historyLabel\nСерверная память Ланы — $memoryLabel\nЛокальные заметки планшета проверяются отдельно при сохранении."
+        fun otherProvider(state: String): String = when (state) {
+            "verified_recently" -> "подключение подтверждено свежим ответом"
+            "not_configured" -> "не настроен в текущем сервере"
+            "unavailable" -> "последняя попытка завершилась ошибкой"
+            else -> "подключение не подтверждено"
+        }
+        return "OpenAI API — $apiLabel\nClaude — ${otherProvider(claude)}\nManus — ${otherProvider(manus)}\nИстория ChatGPT — $historyLabel\nСерверная память Ланы — $memoryLabel\nЛокальные заметки планшета проверяются отдельно при сохранении."
     }
 
     fun root(address: String): String {
