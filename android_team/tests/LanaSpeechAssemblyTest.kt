@@ -30,6 +30,40 @@ class LanaSpeechAssemblyTest {
         val a=LanaSpeechAssembly(); a.segment("Вопрос",0); a.speechBegan()
         assertTrue(a.hasText); assertTrue(a.continuing); assertFalse(a.ready(10000))
     }
+    @Test fun overlappingFinalsDoNotDuplicateWakeWordsOrArithmeticOperands() {
+        val a = LanaSpeechAssembly()
+        assertTrue(a.segment("Лана", 0))
+        assertTrue(a.segment("Лана, сколько будет", 180))
+        assertTrue(a.segment("сколько будет двенадцать плюс восемь", 360))
+        assertFalse(a.ready(1759))
+        assertTrue(a.ready(1760))
+        assertEquals("Лана, сколько будет двенадцать плюс восемь",a.take())
+        assertFalse(a.hasText)
+    }
+    @Test fun repeatedAndShorterLateFinalsAreIdempotent() {
+        val a = LanaSpeechAssembly()
+        a.segment("Расскажи про подключение",0)
+        a.segment("Расскажи про подключение",100)
+        a.segment("Расскажи",200)
+        assertEquals("Расскажи про подключение",a.take())
+    }
+    @Test fun distinctNextSentenceAndLegitimateSingleWordRepetitionStayIntact() {
+        val a = LanaSpeechAssembly()
+        a.segment("Да",0)
+        a.segment("да, давай продолжим",100)
+        a.segment("Это новая тема",200)
+        assertEquals("да, давай продолжим Это новая тема",a.take())
+        val b=LanaSpeechAssembly()
+        b.segment("Я хочу",0)
+        b.segment("хочу продолжить",30)
+        assertEquals("Я хочу хочу продолжить",b.take())
+    }
+    @Test fun foldedFinalStillHonorsTotalSizeAndFailsAtomically() {
+        val a=LanaSpeechAssembly()
+        a.segment("а".repeat(7999),0)
+        assertFalse(a.segment("ещё слова",1))
+        assertEquals("а".repeat(7999),a.take())
+    }
     @Test fun oversizeRejectsWithoutTruncatingStoredSegments() {
         val a=LanaSpeechAssembly(); assertTrue(a.segment("я".repeat(4000),0))
         assertFalse(a.segment("ю".repeat(4001),1)); assertEquals(4000,a.take().length)
