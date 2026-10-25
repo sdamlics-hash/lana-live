@@ -1,7 +1,7 @@
-# LANA 1040 review — self-review only
-- Code reviewed: fresh logo is Canvas-native above a bundled 1039 adult portrait, with listening/thinking/speaking motion; one portrait null fallback. No pixel art or fox patch.
-- Provider status is read-only, unauthenticated health status alone never proves OpenAI works, Claude/Manus have no actual runtime connector in deployed LANA and must show as not configured/unverified. Legacy server lacking new fields must not become connected.
-- Team prompt follows plan → change → actual test → correction → checkpoint; no claim that CI alone proves live Android/API behavior.
-- Defect caught and corrected pre-CI: total prompt exceeded 2400 chars in first draft, compacted contexts while preserving tests and capability honesty.
-- Preview Android screenshot: pending. Live physical Samsung test: pending. Independent review: not done. API/MCP/Claude/Manus real integration: not done.
-- Backout: stable 1039 unchanged; release candidate only merged when all relevant test jobs green and screenshot checked. No uninstall/downgrade recommended.
+# LANA 1041 self-review — 2026-10-25
+Fact: 1040 published and signed; user has NOT yet independently shown installed 1040 here.
+Static review: disconnected provider regex matches explicit "передай Claude/Manus" and Russian aliases only when an imperative targets an unavailable model. Local response occurs before normal OpenAI task and ChatGPT fallback; tasks to OpenAI stay supported. Regex uses Kotlin raw triple quotes to preserve escapes.
+Static review: only uses observed screen-off evidence and explicitly keeps 24/7 unverified.
+Static review: all activity indicators use current listening/thinking/speaking state only. Drawn below portrait without covering face; animation cancelled when not shown.
+Pending: Kotlin tests/CI, emulator visual and data persistence, physical device loop and code11. No independent review or production API test.
+Rollback: published 1040 and server unchanged, no uninstall/downgrade.
