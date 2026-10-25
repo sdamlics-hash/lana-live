@@ -20,7 +20,7 @@ class LanaProjectMemoryTest {
         assertEquals(2,parsed.length())
         assertEquals("user_explicit",parsed.getJSONObject(0).getString("source"))
         assertEquals(1792915200000L,parsed.getJSONObject(0).getLong("createdAt"))
-        assertTrue(LanaProjectMemory(raw){true}.handle("Запомни для проекта gold: Вход M1 подтверждает M5")!!.contains("Дубликат"))
+        assertTrue(LanaProjectMemory(raw,{true}).handle("Запомни для проекта gold: Вход M1 подтверждает M5")!!.contains("Дубликат"))
     }
     @Test fun unrelatedSpeechNeverBecomesSavedMemoryOrModelShortcut() {
         for(q in listOf("Что такое проект Лана?", "Запомни что я люблю листья",
