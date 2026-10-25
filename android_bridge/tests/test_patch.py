@@ -35,6 +35,12 @@ class PatchTests(unittest.TestCase):
         out = mod.patch_archive(self.src, self.root / "out", ROOT / "src" / "LanaCoreClient.kt")
         app = out / "app" / "src" / "main"
         self.assertTrue((app / "java/ai/dreibus/lanalive/LanaCoreClient.kt").exists())
+        helper = app / "java/ai/dreibus/lanalive/LanaHttpBody.kt"
+        native_test = out / "app/src/test/java/ai/dreibus/lanalive/LanaHttpBodyTest.kt"
+        self.assertTrue(helper.exists(), "HTTPS size guard must be bundled")
+        self.assertTrue(native_test.exists(), "Native Kotlin guard tests must be bundled")
+        self.assertIn("readUtf8Bounded", helper.read_text())
+        self.assertNotIn("readText()", (app / "java/ai/dreibus/lanalive/LanaCoreClient.kt").read_text())
         activity = (app / "java/ai/dreibus/lanalive/MainActivity.kt").read_text()
         self.assertIn("Thread {", activity)
         self.assertIn("secretField.text.clear()", activity)
