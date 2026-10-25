@@ -40,7 +40,7 @@ class PatchTests(unittest.TestCase):
         self.assertTrue(helper.exists(), "HTTPS size guard must be bundled")
         self.assertTrue(native_test.exists(), "Native Kotlin guard tests must be bundled")
         self.assertIn("readUtf8Bounded", helper.read_text())
-        self.assertNotIn("readText()", (app / "java/ai/dreibus/lanalive/LanaCoreClient.kt").read_text())
+        self.assertNotIn("bufferedReader(Charsets.UTF_8)", (app / "java/ai/dreibus/lanalive/LanaCoreClient.kt").read_text())
         activity = (app / "java/ai/dreibus/lanalive/MainActivity.kt").read_text()
         self.assertIn("Thread {", activity)
         self.assertIn("secretField.text.clear()", activity)
