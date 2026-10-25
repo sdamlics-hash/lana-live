@@ -1,5 +1,5 @@
-# LANA checkpoint 2026-10-25
-Candidate branch: work/lana-1043-memory-recall-accuracy based on signed 1042.
-Verified by screenshot: LANA falsely stated it never saves conversations. Local legacy ledger actually stores encrypted, scoped bounded conversation turns with no timestamps; ChatGPT history remains unconnected.
-Prepared: local read-only recall of genuine user turns, truthful unavailable/empty cases, prompt amendment, tests and Android generator wiring.
-Next: CI+emulator and screenshot, then signed in-place APK if green, user check on real Samsung. Do not clear data, touch VM or trading. Android code11 still unproven.
+# LANA checkpoint — Batch B1 / 2026-10-25
+Stable release 1043 unchanged; branch work/lana-memory-v2-batch.
+Added: LanaProjectMemory (bounded explicit facts per project, source, timestamp, fail-safe saves), AndroidKeystore encrypted AtomicFile, dual voice/typed routing, separate export/import UI with confirmation, settings and tests.
+Next: open single draft PR; Kotlin Android CI + emulator persistence screenshot; fix failures up to 5 loops. Only after green checks and backup verification consider signed in-place candidate. User to perform actual Samsung tests. No VM/GOLD/Kraken/API keys altered.
+Important: Claude, Manus and entire ChatGPT history NOT connected; 24/7 microphone stability not independently proven.

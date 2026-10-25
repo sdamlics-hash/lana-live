@@ -28,7 +28,7 @@ internal object LanaTypedDialogue {
         counter.text = "${input.length()}/3000 символов"; box.addView(counter)
         val shortcuts = android.widget.HorizontalScrollView(activity)
         val row = LinearLayout(activity)
-        for (sample in listOf("Прочитай мои задачи", "Сводка задач", "Прочитай все заметки", "Что ты умеешь", "Передай команде задание: ")) {
+        for (sample in listOf("Прочитай мои задачи", "Сводка задач", "Прочитай все заметки", "Покажи проекты памяти", "Запомни для проекта Лана: ", "Что ты помнишь по проекту Лана", "Что ты умеешь", "Передай команде задание: ")) {
             row.addView(Button(activity).apply { text = sample; setOnClickListener { input.setText(sample); input.setSelection(input.length()); input.requestFocus() } })
         }
         shortcuts.addView(row); box.addView(shortcuts)

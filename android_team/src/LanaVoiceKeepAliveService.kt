@@ -133,6 +133,11 @@ class LanaVoiceKeepAliveService : Service() {
                     LanaVoiceCommands.Action.WAKE -> { awake = true; say(LanaGreetings.next()); return }
                     LanaVoiceCommands.Action.ASK -> awake = true
                 }
+                if (LanaProjectMemory.matches(text)) {
+                    val reply = LanaProjectMemoryGateway.handle(this@LanaVoiceKeepAliveService,text)
+                        ?: "Команда памяти проектов не распознана. Ничего не изменено."
+                    say(reply); return
+                }
                 if (LanaLocalWorkspace.matches(text)) {
                     val memory = getSharedPreferences("lana_workspace_v1",MODE_PRIVATE)
                     val reply = runCatching {

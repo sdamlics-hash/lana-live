@@ -1,6 +1,7 @@
-# LANA 1043 self-review (not independent)
-- The screenshot request now maps to a local read-only operation. No guessing about yesterday: saved turns have no date tags.
-- Existing per-server/account/conversation scope and encryption respected; nonlegacy, unreadable and empty ledgers do not reveal ungrounded content.
-- Distinguishes recent local conversation from external ChatGPT history; not equivalent to personal memory or cross-chat access.
-- Static review only; Android build, emulator persistence and physical voice acceptance remain necessary.
-- Rollback: preserve signed 1042 and existing data, no uninstall.
+# Batch B1 self-review (not independent)
+- Isolated project memory stored separately and encrypted at rest; no reuse of ChatGPT history or existing local notes; explicit consent required for fact creation.
+- Data backup intentionally user-exported plaintext JSON and labeled as such; no secrets accepted in schema.
+- All note/model paths unchanged; scoped commands return before network model dispatch. Existing 1043 signed package untouched.
+- Regression scenarios specified: unrelated speech, command truncation, project A/B segregation, save fail/throw, duplicate facts, read after restart, invalid backup, confirmed restore.
+- Risks: AndroidKeystore behavior must be checked on emulator and Samsung; no release based only on Kotlin compilation. No real device test yet.
+- Independent review and physical persistence remain pending; CI results not yet known. After 5 cycles, rethink method.
