@@ -7,7 +7,7 @@ internal object LanaTeamVoice {
     private fun input(words: String) = words.trim().replace(Regex("^лана[, ]+", RegexOption.IGNORE_CASE), "")
     // Never silently route an explicitly unavailable provider's task to OpenAI.
     private val unavailableTarget = Regex(
-        "^(?:передай|отправь|попроси|спроси|дай\s+задание)\s+(?:(?:задание|задачу)\s+)?(?:(?:помощнику|модели)\s+)?(?:claude|клод(?:у|а)?|клауд(?:у|а)?|manus|манус(?:у|а)?)(?:\b|$)",
+        """^(?:передай|отправь|попроси|спроси|дай\s+задание)\s+(?:(?:задание|задачу)\s+)?(?:(?:помощнику|модели)\s+)?(?:claude|клод(?:у|а)?|клауд(?:у|а)?|manus|манус(?:у|а)?)(?:\b|$)""",
         RegexOption.IGNORE_CASE
     )
     fun unavailableProvider(words: String): Boolean = unavailableTarget.containsMatchIn(input(words))
