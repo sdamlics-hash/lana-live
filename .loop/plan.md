@@ -1,11 +1,11 @@
-# LANA 1040 batch plan — 2026-10-25
-Baseline: signed LANA 1039 commit 7a0e22631b8d6be9c735a6b5fa3699c1a39515a2, immutable release lana-stable-1039. User has previously installed 1038; on-device 1039 is NOT independently confirmed.
-Goal: bring LANA closer to the desired voice-led assistant, with one combined upgrade, not serial cosmetic hotfixes.
-Changes:
-1. Preserve adult 1039 portrait and draw a distinct animated botanical LANA emblem on top, fully visible at small Samsung screen sizes; graceful portrait fallback. No return to fox or childish face.
-2. Explicit team status for OpenAI, Claude and Manus in authenticated read-only diagnostics. Missing server fields remain unverified, not falsely marked connected. No keys or user messages in diagnostics; no external model calls.
-3. Refresh LANA development prompts to reflect user-approved loop: plan with criteria, execution, evidence from tests, findings, rework, checkpoint; distinguish self-check from independent device verification; never claim background work or ChatGPT history sync.
-4. Regression tests for provider status compatibility, backend diagnostics, dialogue/team constraints, and Android UI build / emulator preview/persistence.
-Acceptance: Kotlin Android checks green, Python server diagnostics tests green, emulator tasks/memory and screenshot verified, signed update only after passes, no downgrade/uninstall/clearing data. After Samsung installation, verify logo proportions and states, API check in settings, and 10 screen-off voice turns. OpenAI model connection can be confirmed ONLY by fresh successful real transport request; health check alone is not proof.
-Rollback: 1039 untouched while candidate develops; previous published release remains available; if installed issue, correct forward with same signing identity rather than uninstalling / forced downgrade.
-Stop/re-plan after five repair rounds or repetition of unresolved cause. No changes to GOLD/KRAKEN, production servers, secrets, or unrelated workflows.
+# LANA 1041 coordinated improvements — 2026-10-25
+Baseline: signed stable 1040, release lana-stable-1040, commit 717eb2340777c38d6929f6dfa4f06a16b8d05d46. Existing installed build not inferred from GitHub; no uninstall or data changes.
+User objective: evolving LANA as one Android app closer to a powerful, truthful voice assistant with seamless repeat turns, background listening, memory, coordinated AI team and live companion.
+Batch:
+1. Fix stale voice capability statement: Samsung has already confirmed several successive screen-off turns, but not 24/7. Don't claim fully stable service.
+2. Guard explicit spoken assignments to Claude/Manus while unconnected, with clear feedback and no OpenAI provider request or phantom task; retain explicit OpenAI team task dispatch and ChatGPT-history boundary.
+3. Improve companion voice-phase visual expression with listening/speaking indicators, preserve current adult portrait and green leaf logo.
+4. Add unit regression tests for truthful provider commands, voice state visuals via build/emulator snapshot, dialogue and saved data.
+Acceptance before merge: core+Android+voice CI green, emulator persistence screenshot inspected, no unintentional provider dispatch, original 1040 published APK intact. On Samsung after update user verifies voice loops with screen off, logo display and provider boundary. Android code 11 still requires independent physical confirmation; do not invent a fix.
+Loop: plan→implement→run factual checks→repair issues (max 5 rounds)→checkpoint.
+Rollback: signed 1040 tagged and untouched; same signing identity, no app removal/downgrade; forward correction if necessary. Never change server or GOLD/KRAKEN without separate authorization.

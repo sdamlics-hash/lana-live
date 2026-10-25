@@ -5,6 +5,13 @@ import java.util.Locale
 internal object LanaTeamVoice {
     private val dispatch = Regex("^(?:передай|отправь)\\s+(?:задание\\s+)?(?:помощнику\\s+)?(?:openai|open ai|опенай|опен аи|chatgpt|chat gpt|чат gpt|чатгпт|чату gpt|чату джипити|команде|команды)\\b\\s*[:,—-]?\\s*", RegexOption.IGNORE_CASE)
     private fun input(words: String) = words.trim().replace(Regex("^лана[, ]+", RegexOption.IGNORE_CASE), "")
+    // Never silently route an explicitly unavailable provider's task to OpenAI.
+    private val unavailableTarget = Regex(
+        """^(?:передай|отправь|попроси|спроси|дай\s+задание)\s+(?:(?:задание|задачу)\s+)?(?:(?:помощнику|модели)\s+)?(?:claude|клод(?:у|а)?|клауд(?:у|а)?|manus|манус(?:у|а)?)(?:\b|$)""",
+        RegexOption.IGNORE_CASE
+    )
+    fun unavailableProvider(words: String): Boolean = unavailableTarget.containsMatchIn(input(words))
+
     fun task(words: String): String? {
         val value = input(words)
         val prefix = dispatch.find(value) ?: return null
@@ -14,6 +21,8 @@ internal object LanaTeamVoice {
     }
     fun localReply(words: String): String? {
         val q = words.lowercase(Locale.ROOT).replace('ё', 'е').replace(Regex("[?!.,]"), "").replace(Regex("\\s+"), " ").trim().removePrefix("лана ")
+        if (unavailableProvider(words))
+            return "Claude и Manus пока не подключены к команде. Ничего не отправлено. Проверить соединения можно в Настройках."
         if (task(words) == null && (dispatch.containsMatchIn(input(words)) || q.startsWith("дай команду")))
             return "Для отправки назови получателя и само задание. Например: передай команде задание, составь план проверки Ланы. Пока ничего не отправлено."
         return when (q) {
@@ -24,7 +33,7 @@ internal object LanaTeamVoice {
             "у тебя есть доступ к нашей переписке", "ты видишь всю историю chatgpt" ->
                 "Всей истории ChatGPT у меня нет. Я использую текущий разговор, описание проекта и выбранные тобой заметки."
             "ты работаешь с выключенным экраном", "ты работаешь круглосуточно" ->
-                "Работа с выключенным экраном и круглосуточный режим пока не подтверждены. Сейчас проверен разговор в открытом приложении."
+                "На Samsung уже проверены несколько диалогов с выключенным экраном. Постоянная работа 24/7 не подтверждена: иногда служба распознавания Android отключается с кодом 11."
             else -> null
         }
     }

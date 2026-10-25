@@ -79,6 +79,46 @@ internal class LanaPresenceView(context: Context) : View(context) {
         canvas.drawCircle(-r*.38f,r*.38f,r*.10f,strokePaint)
         canvas.restore()
     }
+    /** Voice-phase feedback outside the portrait. Animation is cosmetic and
+     * driven only by the current state, never a fabricated microphone meter.
+     */
+    private fun drawVoiceActivity(canvas: Canvas, centerX: Float, centerY: Float, unit: Float) {
+        if (!animated) return
+        strokePaint.reset()
+        strokePaint.isAntiAlias = true
+        strokePaint.strokeCap = Paint.Cap.ROUND
+        val green = Color.rgb(48,154,91)
+        val gold = Color.rgb(185,138,58)
+        when(state) {
+            "Слушаю" -> {
+                strokePaint.style = Paint.Style.STROKE
+                strokePaint.strokeWidth = maxOf(1.5f,unit*.16f)
+                strokePaint.color = Color.argb((110+100*phase).toInt(),48,154,91)
+                canvas.drawCircle(centerX,centerY,unit*(.45f+.36f*phase),strokePaint)
+                strokePaint.style = Paint.Style.FILL
+                strokePaint.color = green
+                canvas.drawCircle(centerX,centerY,unit*.26f,strokePaint)
+            }
+            "Думаю" -> {
+                strokePaint.style = Paint.Style.FILL
+                for(i in 0..2) {
+                    strokePaint.color = if(i == (phase*3f).toInt().coerceIn(0,2)) gold else Color.argb(90,185,138,58)
+                    canvas.drawCircle(centerX+(i-1)*unit*.82f,centerY,unit*.23f,strokePaint)
+                }
+            }
+            "Отвечаю" -> {
+                strokePaint.style = Paint.Style.STROKE
+                strokePaint.strokeWidth = maxOf(1.6f,unit*.2f)
+                strokePaint.color = Color.rgb(175,101,77)
+                for(i in 0..4) {
+                    val amplitude = if(i%2==0) .38f else .75f
+                    val half = unit*(amplitude+.20f*phase)
+                    val x=centerX+(i-2)*unit*.52f
+                    canvas.drawLine(x,centerY-half,x,centerY+half,strokePaint)
+                }
+            }
+        }
+    }
     override fun onDraw(canvas:Canvas) {
         super.onDraw(canvas)
         if(width<=0||height<=0)return
@@ -121,6 +161,8 @@ internal class LanaPresenceView(context: Context) : View(context) {
         strokePaint.style=Paint.Style.STROKE
         strokePaint.strokeWidth=if(animated) 3.2f else 1.7f
         canvas.drawRoundRect(frame,rounding,rounding,strokePaint)
+        val feedbackY = min(frame.bottom + height*.045f, height*.91f)
+        drawVoiceActivity(canvas,width/2f,feedbackY,min(height*.026f,16f*resources.displayMetrics.density))
         strokePaint.style=Paint.Style.FILL
         strokePaint.typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL)
         strokePaint.textAlign=Paint.Align.CENTER
