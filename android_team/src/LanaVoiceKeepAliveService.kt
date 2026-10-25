@@ -142,6 +142,12 @@ class LanaVoiceKeepAliveService : Service() {
                     }.getOrNull() ?: "Не удалось выполнить команду локальной памяти. Проверь записи на экране."
                     say(reply); return
                 }
+                if (LanaDialogueRecall.matches(text)) {
+                    val response = runCatching { transport.recall(config) }.getOrElse {
+                        "Не удалось прочитать местную историю разговора. Я не буду придумывать, что было вчера."
+                    }
+                    say(response); return
+                }
                 LanaDeviceClock.answer(text)?.let { say(it); return }
                 LanaTeamVoice.localReply(text)?.let { say(it); return }
                 // Local journal reads do not contact a model or resend a task.
