@@ -66,6 +66,12 @@ internal class LanaRuntimeTransport(private val context: Context, private val di
             future.cancel(true)
         }
     }
+    /** Local-only memory lookup. Never sends a model request or changes saved dialogue. */
+    fun recall(request: LanaRuntimeRequest): String {
+        if (!request.legacy) return LanaDialogueRecall.reply(false, emptyList())
+        val prior = history.snapshot(scope(request), diagnostic)
+        return LanaDialogueRecall.reply(true, prior, history.storageWarning != null)
+    }
     fun accepted(request: LanaRuntimeRequest, answer: String): Boolean = !request.legacy || history.commit(scope(request),request.question,answer)
     fun close() { worker.shutdownNow(); main.removeCallbacksAndMessages(null) }
 }
