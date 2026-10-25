@@ -47,34 +47,36 @@ internal class LanaPresenceView(context: Context) : View(context) {
     /** Small original LANA leaf-orbit emblem. Drawn from vectors at runtime,
      * so its visibility never depends on an external image or network fetch.
      */
+    /** Elegant single-leaf brand mark. No rotor motion or false audio animation. */
     private fun drawMark(canvas: Canvas, x: Float, y: Float, r: Float, accent: Int) {
         canvas.save()
         canvas.translate(x,y)
-        if (animated) canvas.rotate((phase - .5f) * if (state == "Думаю") 22f else 8f)
         strokePaint.reset()
         strokePaint.isAntiAlias = true
-        strokePaint.color = Color.argb(224, 23, 54, 40)
-        canvas.drawCircle(0f,0f,r,strokePaint)
-        strokePaint.color = Color.argb(195, 178, 238, 170)
-        strokePaint.style = Paint.Style.STROKE
-        strokePaint.strokeWidth = maxOf(1.5f, r*.10f)
-        canvas.drawCircle(0f,0f,r*.82f,strokePaint)
         strokePaint.style = Paint.Style.FILL
-        for (i in 0..2) {
-            canvas.save()
-            canvas.rotate(i * 120f)
-            val leaf = Path().apply {
-                moveTo(0f,-r*.18f)
-                cubicTo(-r*.55f,-r*.48f,-r*.38f,-r*.96f,0f,-r*.98f)
-                cubicTo(r*.36f,-r*.78f,r*.41f,-r*.36f,0f,-r*.18f)
-                close()
-            }
-            strokePaint.color = if (i == 1) Color.rgb(151,225,104) else Color.rgb(63,185,107)
-            canvas.drawPath(leaf,strokePaint)
-            canvas.restore()
+        strokePaint.color = Color.argb(226, 25, 62, 46)
+        canvas.drawCircle(0f,0f,r,strokePaint)
+        strokePaint.style = Paint.Style.STROKE
+        strokePaint.color = Color.argb(if(animated) (136+phase*95).toInt() else 132, 229, 199, 103)
+        strokePaint.strokeWidth = maxOf(1.3f,r*.08f)
+        canvas.drawCircle(0f,0f,r*.83f,strokePaint)
+        val leaf = Path().apply {
+            moveTo(-r*.55f,r*.48f)
+            cubicTo(-r*.66f,-r*.26f,-r*.07f,-r*.83f,r*.61f,-r*.70f)
+            cubicTo(r*.59f,r*.12f,r*.15f,r*.56f,-r*.55f,r*.48f)
+            close()
         }
-        strokePaint.color = if (state=="Отвечаю") Color.rgb(255,222,117) else accent
-        canvas.drawCircle(0f,0f,r*.22f,strokePaint)
+        strokePaint.style = Paint.Style.FILL
+        strokePaint.color = Color.rgb(105,208,107)
+        canvas.drawPath(leaf,strokePaint)
+        strokePaint.style = Paint.Style.STROKE
+        strokePaint.color = Color.rgb(244,220,130)
+        strokePaint.strokeWidth = maxOf(1.1f,r*.09f)
+        strokePaint.strokeCap = Paint.Cap.ROUND
+        canvas.drawLine(-r*.39f,r*.37f,r*.43f,-r*.51f,strokePaint)
+        strokePaint.style = Paint.Style.FILL
+        strokePaint.color = if(state=="Отвечаю") Color.rgb(255,229,150) else accent
+        canvas.drawCircle(-r*.38f,r*.38f,r*.10f,strokePaint)
         canvas.restore()
     }
     override fun onDraw(canvas:Canvas) {
@@ -114,7 +116,7 @@ internal class LanaPresenceView(context: Context) : View(context) {
         // The badge lives above the portrait, not on the face. A separate
         // drawable path avoids the masked fox/halo bug seen in 1036-1038.
         val markR = min(targetWidth*.19f,24f*resources.displayMetrics.density)
-        drawMark(canvas, frame.right-markR*.40f, frame.top+markR*.50f, markR, accent)
+        drawMark(canvas, frame.right-markR*.28f, frame.top+markR*.52f, markR*.84f, accent)
         strokePaint.color=accent
         strokePaint.style=Paint.Style.STROKE
         strokePaint.strokeWidth=if(animated) 3.2f else 1.7f
