@@ -31,8 +31,9 @@ internal object LanaCoreClient {
             val code = conn.responseCode
             if (code == 401 || code == 403) return "Сервер отклонил ключ доступа (HTTP $code)"
             if (code != 200) return "Сервер ответил HTTP $code. Задания не запускались"
-            val body = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-            require(body.length <= 8_192) { "Неожиданно большой ответ сервера" }
+            // A Content-Length check after readText() would be too late:
+            // a compromised server could stream unlimited bytes.
+            val body = conn.inputStream.use { LanaHttpBody.readUtf8Bounded(it, 8_192) }
             val json = JSONObject(body)
             return if (json.optBoolean("ok", false) &&
                 json.optString("mode") == "offline-prototype") {
