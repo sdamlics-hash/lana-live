@@ -16,4 +16,6 @@ class PreviewTests(unittest.TestCase):
             self.assertIn('connectionStatusText',main)
             self.assertIn('LanaConnectionStatus.chatUrl(baseUrl)',(src/'LanaChatClient.kt').read_text())
             self.assertIn('/v1/connections',(src/'LanaCoreClient.kt').read_text())
+            self.assertIn('LanaHttpBody.readUtf8Bounded',(src/'LanaCoreClient.kt').read_text())
+            self.assertTrue((src/'LanaHttpBody.kt').exists())
             self.assertIn('0.5.5-lana-connections',(out/'app/build.gradle.kts').read_text())
