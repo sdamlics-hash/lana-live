@@ -19,6 +19,7 @@ from .usage import UsageGate, UsageLimitError
 MAX_INPUT_CHARS = 2400
 MAX_HISTORY_MESSAGES = 16
 MAX_ANSWER_CHARS = 5000
+MAX_OPENAI_RESPONSE_BYTES = 1_048_576
 DEFAULT_MODEL = "gpt-4.1-mini"
 API_URL = "https://api.openai.com/v1/responses"
 
@@ -56,6 +57,21 @@ class ChatError(RuntimeError):
     pass
 
 
+class _RejectOpenAIRedirects(urllib.request.HTTPRedirectHandler):
+    """Never forward the bearer key or user dialogue to a redirect target."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _open_openai_request(request, timeout):
+    # urllib's default handler can follow HTTP 301/302 and copy Authorization.
+    # This opener preserves TLS validation and refuses all redirects.
+    return urllib.request.build_opener(_RejectOpenAIRedirects()).open(
+        request, timeout=timeout
+    )
+
+
 def openai_transport(api_key, model, messages, *, timeout=28):
     """One API call; system prompt and recent history are sent with store=false."""
     payload = {
@@ -71,16 +87,32 @@ def openai_transport(api_key, model, messages, *, timeout=28):
         headers={"Authorization": "Bearer " + api_key, "Content-Type": "application/json"},
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as res:
-            data = json.load(res)
-    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) as exc:
-        # Do not log error bodies: providers may echo private request data.
-        raise ChatError("ИИ сейчас недоступен. Попробуй ещё раз.") from exc
+        with _open_openai_request(request, timeout) as res:
+            # Never allocate unbounded memory on an unexpected provider response.
+            raw = res.read(MAX_OPENAI_RESPONSE_BYTES + 1)
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError) as exc:
+        # Do not log error bodies or redirect targets: they may contain secrets.
+        raise ChatError("ИИ сейчас недоступен. Попробуй ещё раз.") from None
+    if len(raw) > MAX_OPENAI_RESPONSE_BYTES:
+        raise ChatError("Ответ ИИ слишком большой. Попробуй ещё раз.")
+    try:
+        data = json.loads(raw)
+    except (ValueError, UnicodeError, TypeError):
+        raise ChatError("ИИ вернул некорректный ответ.") from None
+    if not isinstance(data, dict) or not isinstance(data.get("output"), list):
+        raise ChatError("ИИ вернул некорректный ответ.")
 
     # Responses API: assistant text lives in output[].content[].text.
     segments = []
-    for item in data.get("output", []):
-        for part in item.get("content", []):
+    for item in data["output"]:
+        if not isinstance(item, dict):
+            raise ChatError("ИИ вернул некорректный ответ.")
+        parts = item.get("content", [])
+        if not isinstance(parts, list):
+            raise ChatError("ИИ вернул некорректный ответ.")
+        for part in parts:
+            if not isinstance(part, dict):
+                raise ChatError("ИИ вернул некорректный ответ.")
             if part.get("type") == "output_text" and isinstance(part.get("text"), str):
                 segments.append(part["text"])
     answer = "\n".join(segments).strip()
@@ -100,6 +132,7 @@ class ChatService:
             self.db_path,
             daily_limit=int(os.environ.get('LANA_CHAT_DAILY_MAX', '100')),
             conversation_hourly_limit=int(os.environ.get('LANA_CHAT_HOURLY_MAX', '30')),
+            global_hourly_limit=int(os.environ.get('LANA_CHAT_GLOBAL_HOURLY_MAX', '40')),
         )
         self._provider_lock = threading.Lock()
         self._provider_state = "unverified"
