@@ -4,6 +4,7 @@ import hmac
 import json
 import os
 import re
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 from .engine import TaskQueue, UnsafeTaskError
@@ -26,6 +27,29 @@ def make_handler(queue, token, chat_service=None):
             # Set the deadline before StreamRequestHandler builds buffered streams.
             self.request.settimeout(REQUEST_IO_TIMEOUT_SECONDS)
             super().setup()
+
+        def _read_body(self, length):
+            # A per-recv timeout alone is not sufficient: a client could
+            # send one byte every few seconds and keep resetting it.
+            # read1() returns available bytes so we can enforce a total
+            # monotonic deadline across the entire body.
+            deadline = time.monotonic() + REQUEST_IO_TIMEOUT_SECONDS
+            remaining = length
+            chunks = []
+            try:
+                while remaining:
+                    left = deadline - time.monotonic()
+                    if left <= 0:
+                        raise TimeoutError("body deadline exceeded")
+                    self.connection.settimeout(left)
+                    chunk = self.rfile.read1(min(8192, remaining))
+                    if not chunk:
+                        raise ValueError("incomplete body")
+                    chunks.append(chunk)
+                    remaining -= len(chunk)
+                return b"".join(chunks)
+            finally:
+                self.connection.settimeout(REQUEST_IO_TIMEOUT_SECONDS)
 
         def log_message(self, fmt, *args):
             # Do not record sensitive URLs, bodies, or authorization headers.
@@ -125,7 +149,7 @@ def make_handler(queue, token, chat_service=None):
                 self._json(413, {"error": "request body too large"})
                 return
             try:
-                data = json.loads(self.rfile.read(length).decode("utf-8"),
+                data = json.loads(self._read_body(length).decode("utf-8"),
                                   parse_constant=lambda _: (_ for _ in ()).throw(ValueError("non-finite JSON")))
             except TimeoutError:
                 # A half-sent POST must not pin an unbounded worker thread.
