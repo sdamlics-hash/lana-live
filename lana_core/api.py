@@ -4,6 +4,7 @@ import hmac
 import json
 import os
 import re
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 from .engine import TaskQueue, UnsafeTaskError
@@ -11,6 +12,9 @@ from .chat import ChatService, ChatError
 from .usage import UsageLimitError
 
 MAX_BODY_BYTES = 1024 * 1024
+# Loopback bridge still needs a read deadline: stalled clients must not hold threads forever.
+REQUEST_IO_TIMEOUT_SECONDS = 15
+MAX_CONTENT_LENGTH_DIGITS = 10
 TASK_ID_RE = re.compile(r"^/v1/tasks/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$")
 KEY_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
 
@@ -19,6 +23,34 @@ def make_handler(queue, token, chat_service=None):
         raise ValueError("LANA_API_TOKEN must be a random secret of at least 32 characters")
 
     class Handler(BaseHTTPRequestHandler):
+        def setup(self):
+            # Set the deadline before StreamRequestHandler builds buffered streams.
+            self.request.settimeout(REQUEST_IO_TIMEOUT_SECONDS)
+            super().setup()
+
+        def _read_body(self, length):
+            # A per-recv timeout alone is not sufficient: a client could
+            # send one byte every few seconds and keep resetting it.
+            # read1() returns available bytes so we can enforce a total
+            # monotonic deadline across the entire body.
+            deadline = time.monotonic() + REQUEST_IO_TIMEOUT_SECONDS
+            remaining = length
+            chunks = []
+            try:
+                while remaining:
+                    left = deadline - time.monotonic()
+                    if left <= 0:
+                        raise TimeoutError("body deadline exceeded")
+                    self.connection.settimeout(left)
+                    chunk = self.rfile.read1(min(8192, remaining))
+                    if not chunk:
+                        raise ValueError("incomplete body")
+                    chunks.append(chunk)
+                    remaining -= len(chunk)
+                return b"".join(chunks)
+            finally:
+                self.connection.settimeout(REQUEST_IO_TIMEOUT_SECONDS)
+
         def log_message(self, fmt, *args):
             # Do not record sensitive URLs, bodies, or authorization headers.
             return
@@ -94,9 +126,20 @@ def make_handler(queue, token, chat_service=None):
             if self.headers.get("Content-Type", "").split(";")[0].strip().lower() != "application/json":
                 self._json(415, {"error": "application/json required"})
                 return
-            length_str = self.headers.get("Content-Length", "")
+            lengths = self.headers.get_all("Content-Length", [])
+            if len(lengths) != 1:
+                self._json(411 if not lengths else 400, {
+                    "error": "Content-Length required" if not lengths else "duplicate Content-Length"
+                })
+                return
+            length_str = lengths[0]
             if not length_str.isascii() or not length_str.isdecimal():
-                self._json(411, {"error": "Content-Length required"})
+                self._json(411, {"error": "valid Content-Length required"})
+                return
+            # Python rejects enormous decimal integers and would otherwise abort
+            # the request without a response. Reject before calling int().
+            if len(length_str) > MAX_CONTENT_LENGTH_DIGITS:
+                self._json(413, {"error": "request body too large"})
                 return
             length = int(length_str)
             if length == 0:
@@ -106,8 +149,17 @@ def make_handler(queue, token, chat_service=None):
                 self._json(413, {"error": "request body too large"})
                 return
             try:
-                data = json.loads(self.rfile.read(length).decode("utf-8"),
+                data = json.loads(self._read_body(length).decode("utf-8"),
                                   parse_constant=lambda _: (_ for _ in ()).throw(ValueError("non-finite JSON")))
+            except TimeoutError:
+                # A half-sent POST must not pin an unbounded worker thread.
+                # Do not keep a timed-out HTTP connection alive.
+                self.close_connection = True
+                try:
+                    self._json(408, {"error": "request body timeout"})
+                except OSError:
+                    pass  # Peer may already have disconnected.
+                return
             except (UnicodeError, ValueError):
                 self._json(400, {"error": "invalid JSON"})
                 return
