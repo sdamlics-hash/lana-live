@@ -139,6 +139,17 @@ class ProbeContractTests(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaises(AcceptanceError):
                 verify_https_auth(ROOT, TOKEN, FakeClient([error(401), bad]))
 
+    def test_interrupted_response_read_does_not_leak_secrets(self):
+        class Interrupted(Response):
+            def read(self, *args):
+                raise OSError("sensitive response " + TOKEN)
+        with self.assertRaises(AcceptanceError) as cm:
+            verify_https_auth(ROOT, TOKEN, FakeClient([
+                error(401), Interrupted(b"", ROOT + "/v1/status")
+            ]))
+        self.assertNotIn(TOKEN, str(cm.exception))
+        self.assertIn("прервался", str(cm.exception))
+
     def test_network_errors_do_not_leak_token(self):
         with self.assertRaises(AcceptanceError) as cm:
             verify_https_auth(ROOT, TOKEN, FakeClient([OSError(TOKEN)]))
