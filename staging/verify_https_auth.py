@@ -93,8 +93,8 @@ def verify_https_auth(base_url, token, opener=None):
         raise AcceptanceError("Токен Ланы отклонён или статус недоступен")
     if (status.get("ok") is not True or status.get("mode") != "offline-prototype" or
             not isinstance(status.get("allowed"), list) or
-            set(status["allowed"]) != {"heartbeat", "trade_report"} or
-            any(not isinstance(x, str) for x in status["allowed"])):
+            any(not isinstance(x, str) for x in status["allowed"]) or
+            set(status["allowed"]) != {"heartbeat", "trade_report"}):
         raise AcceptanceError("Схема тестового статуса Ланы не совпадает")
     code, connections = _request(opener, root + "/v1/connections", token)
     if (code != 200 or connections is None or
