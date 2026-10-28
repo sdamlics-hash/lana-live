@@ -65,6 +65,8 @@ def _request(opener, endpoint, token=None):
             if len(raw) > 8192:
                 raise AcceptanceError("Ответ сервера слишком большой")
             payload = json.loads(raw.decode("utf-8"))
+        except (OSError, http.client.HTTPException, urllib.error.URLError):
+            raise AcceptanceError("Ответ HTTPS-сервера прервался") from None
         except (UnicodeError, ValueError, TypeError):
             raise AcceptanceError("Неверный JSON сервера") from None
         if not isinstance(payload, dict):
