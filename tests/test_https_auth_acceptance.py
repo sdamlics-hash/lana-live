@@ -69,7 +69,7 @@ class FakeClient:
 
 class ProbeContractTests(unittest.TestCase):
     def valid(self):
-        return FakeClient([error(401), ok(STATUS, "/v1/status"),
+        return FakeClient([error(401), error(401), ok(STATUS, "/v1/status"),
                            ok(CONNECTIONS, "/v1/connections")])
 
     def test_read_only_contract_and_no_secret_in_unauthorized_probe(self):
@@ -80,17 +80,36 @@ class ProbeContractTests(unittest.TestCase):
         self.assertFalse(result["live_openai_tested"])
         self.assertFalse(result["samsung_audio_tested"])
         self.assertEqual(result["paid_model_requests"], 0)
-        self.assertEqual(len(client.calls), 3)
+        self.assertEqual(len(client.calls), 4)
         self.assertTrue(all(req.get_method() == "GET" and timeout == 8
                             for req, timeout in client.calls))
         self.assertNotIn("Authorization", client.calls[0][0].headers)
-        self.assertEqual(client.calls[1][0].get_header("Authorization"), "Bearer " + TOKEN)
+        self.assertNotIn("Authorization", client.calls[1][0].headers)
+        self.assertEqual(client.calls[1][0].full_url, ROOT + "/v1/connections")
         self.assertEqual(client.calls[2][0].get_header("Authorization"), "Bearer " + TOKEN)
-        self.assertEqual(client.calls[2][0].full_url, ROOT + "/v1/connections")
+        self.assertEqual(client.calls[3][0].get_header("Authorization"), "Bearer " + TOKEN)
+        self.assertEqual(client.calls[3][0].full_url, ROOT + "/v1/connections")
+        self.assertTrue(result["unauthorized_connections_rejected"])
+
+    def test_public_connections_route_fails_before_token_sent(self):
+        # /v1/status can be protected while /v1/connections is public
+        # through a reverse-proxy mistake. Reject before disclosing a token.
+        client = FakeClient([error(401), ok(CONNECTIONS, "/v1/connections")])
+        with self.assertRaises(AcceptanceError):
+            verify_https_auth(ROOT, TOKEN, client)
+        self.assertEqual(len(client.calls), 2)
+        self.assertTrue(all("Authorization" not in req.headers for req, _ in client.calls))
+
+    def test_connections_route_forbidden_instead_of_unauthorized(self):
+        client = FakeClient([error(401), error(403)])
+        with self.assertRaises(AcceptanceError):
+            verify_https_auth(ROOT, TOKEN, client)
+        self.assertEqual(len(client.calls), 2)
+        self.assertTrue(all("Authorization" not in req.headers for req, _ in client.calls))
 
     def test_public_status_or_invalid_token_rejected(self):
         for replies in ([ok(STATUS, "/v1/status")],
-                        [error(401), error(403)]):
+                        [error(401), error(401), error(403)]):
             with self.subTest(replies=replies), self.assertRaises(AcceptanceError):
                 verify_https_auth(ROOT, TOKEN, FakeClient(replies))
 
@@ -102,7 +121,7 @@ class ProbeContractTests(unittest.TestCase):
         ]:
             with self.subTest(bad=bad), self.assertRaises(AcceptanceError):
                 verify_https_auth(ROOT, TOKEN,
-                    FakeClient([error(401), ok(STATUS, "/v1/status"), ok(bad, "/v1/connections")]))
+                    FakeClient([error(401), error(401), ok(STATUS, "/v1/status"), ok(bad, "/v1/connections")]))
 
     def test_redirect_and_wrong_endpoint_never_accepted(self):
         self.assertIsNone(RejectRedirects().redirect_request(None, None, 302, "", {}, "https://evil.test"))
@@ -110,7 +129,7 @@ class ProbeContractTests(unittest.TestCase):
             verify_https_auth(ROOT, TOKEN, FakeClient([error(302)]))
         with self.assertRaises(AcceptanceError):
             verify_https_auth(ROOT, TOKEN, FakeClient([
-                error(401), Response(json.dumps(STATUS).encode(), "https://other.test/v1/status")
+                error(401), error(401), Response(json.dumps(STATUS).encode(), "https://other.test/v1/status")
             ]))
 
     def test_reject_invalid_urls_before_network(self):
@@ -137,7 +156,7 @@ class ProbeContractTests(unittest.TestCase):
         ]
         for bad in bad_replies:
             with self.subTest(bad=bad), self.assertRaises(AcceptanceError):
-                verify_https_auth(ROOT, TOKEN, FakeClient([error(401), bad]))
+                verify_https_auth(ROOT, TOKEN, FakeClient([error(401), error(401), bad]))
 
     def test_interrupted_response_read_does_not_leak_secrets(self):
         class Interrupted(Response):
@@ -145,7 +164,7 @@ class ProbeContractTests(unittest.TestCase):
                 raise OSError("sensitive response " + TOKEN)
         with self.assertRaises(AcceptanceError) as cm:
             verify_https_auth(ROOT, TOKEN, FakeClient([
-                error(401), Interrupted(b"", ROOT + "/v1/status")
+                error(401), error(401), Interrupted(b"", ROOT + "/v1/status")
             ]))
         self.assertNotIn(TOKEN, str(cm.exception))
         self.assertIn("прервался", str(cm.exception))
