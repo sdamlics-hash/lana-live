@@ -75,7 +75,7 @@ def _request(opener, endpoint, token=None):
 
 
 def verify_https_auth(base_url, token, opener=None):
-    """Probe only GET /v1/status (without/with token), GET /v1/connections.
+    """Probe GET /v1/status and /v1/connections without/with token.
 
     Opener injection is for offline tests with a trusted local TLS certificate.
     """
@@ -87,9 +87,13 @@ def verify_https_auth(base_url, token, opener=None):
         urllib.request.HTTPSHandler(context=ssl.create_default_context()),
         RejectRedirects(),
     )
-    code, _ = _request(opener, root + "/v1/status")
-    if code != 401:
-        raise AcceptanceError("Проверка защиты провалена: без токена ожидается 401")
+    # Each exposed route must independently reject an unauthenticated client.
+    # Otherwise a misconfigured reverse proxy can leak connection metadata
+    # even while /v1/status is correctly protected.
+    for path in ("/v1/status", "/v1/connections"):
+        code, _ = _request(opener, root + path)
+        if code != 401:
+            raise AcceptanceError("Проверка защиты провалена: без токена ожидается 401")
     code, status = _request(opener, root + "/v1/status", token)
     if code != 200 or status is None:
         raise AcceptanceError("Токен Ланы отклонён или статус недоступен")
@@ -114,6 +118,7 @@ def verify_https_auth(base_url, token, opener=None):
     return {
         "https_and_certificate_verified": True,
         "unauthorized_access_rejected": True,
+        "unauthorized_connections_rejected": True,
         "authenticated_status_verified": True,
         "connections_schema_verified": True,
         "server_claims": {name: states[name]["state"]
