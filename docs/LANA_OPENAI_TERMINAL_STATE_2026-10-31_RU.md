@@ -18,7 +18,14 @@
 - Создана изолированная ветка `fix/lana-responses-terminal-state-20261031` от PR №57, без изменений main.
 - В `chat.py` добавлена проверка терминального статуса и фильтрация только message; старый тестовый ответ обновлён под официальную схему.
 - Добавлены 5 тестов: completed, optional item status, 5 неполных состояний, отсутствующий статус, HTTP 503 + 1 попытка + 0 записей в историю.
-- Результаты независимых CI добавлять после выполнения, не выдавать их за проверку реального OpenAI или Samsung.
+- Первый CI прогон 31.10 выявил 4 регрессии старых фикстурных тестов: в тестовых JSON отсутствовали `status` и `type=message`. Причина в фикстурах, не в Android. Исправлены 4 образца в `tests/test_openai_transport_security.py`; лог ошибки [#41188399640](https://github.com/sdamlics-hash/lana-live/actions/runs/41188399640).
+- Повторный независимый CI: [Core Tests #41188457465](https://github.com/sdamlics-hash/lana-live/actions/runs/41188457465) — **SUCCESS, 89/89 тестов** (включая 5 новых); лог job #124500089555 проверен.
+- [Voice + OpenAI Preview #41188457426](https://github.com/sdamlics-hash/lana-live/actions/runs/41188457426) — **SUCCESS**.
+- [Voice Repair #41188457471](https://github.com/sdamlics-hash/lana-live/actions/runs/41188457471) — **SUCCESS**.
+- [V3.8 Memory Consent #41188457405](https://github.com/sdamlics-hash/lana-live/actions/runs/41188457405) — **SUCCESS**.
+- [V3.9 Connection Evidence #41188457409](https://github.com/sdamlics-hash/lana-live/actions/runs/41188457409) — **SUCCESS**.
+- [V4.0 Voice Turns #41188457463](https://github.com/sdamlics-hash/lana-live/actions/runs/41188457463) — **SUCCESS**.
+- 6/6 workflow успешны после исправления. Эти проверки **не доказывают** реальный OpenAI, Samsung или 24/7.
 
 ## Ограничения
 Тесты используют только имитированный ответ OpenAI. Не проверяют настоящую VM, платные вызовы, русский TTS, фоновый wake-word или круглосуточную работу.
