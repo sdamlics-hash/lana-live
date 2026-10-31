@@ -22,7 +22,9 @@ class OpenAITransportSecurityTests(unittest.TestCase):
         self.target_hits = []
         self.status = 200
         self.body = json.dumps({
-            "output": [{"content": [{"type": "output_text", "text": "Привет, Сантик!"}]}]
+            "status": "completed",
+            "output": [{"type": "message", "status": "completed",
+                        "content": [{"type": "output_text", "text": "Привет, Сантик!"}]}]
         }, ensure_ascii=False).encode("utf-8")
         outer = self
 
@@ -105,8 +107,8 @@ class OpenAITransportSecurityTests(unittest.TestCase):
             b"not json",
             b"[]",
             b'{"output":{}}',
-            b'{"output":[{"content":{}}]}',
-            b'{"output":[{"content":[null]}]}',
+            b'{"status":"completed","output":[{"type":"message","content":{}}]}',
+            b'{"status":"completed","output":[{"type":"message","content":[null]}]}',
         ):
             with self.subTest(body=body[:40]):
                 self.body = body
@@ -115,7 +117,7 @@ class OpenAITransportSecurityTests(unittest.TestCase):
                 self.assertIn("некорректный", str(caught.exception))
 
     def test_empty_text_does_not_become_fake_success(self):
-        self.body = b'{"output":[{"content":[{"type":"output_text","text":"   "}]}]}'
+        self.body = b'{"status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"   "}]}]}'
         with self.assertRaises(chat.ChatError) as caught:
             self.ask()
         self.assertIn("пустым", str(caught.exception))
