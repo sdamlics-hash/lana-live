@@ -82,7 +82,7 @@ class ChatTests(unittest.TestCase):
         class FakeResponse2:
             def __enter__(self): return self
             def __exit__(self,*args): pass
-            def read(self, *args): return '{"output":[{"content":[{"type":"output_text","text":"Да, слушаю!"}]}]}'.encode("utf-8")
+            def read(self, *args): return '{"status":"completed","output":[{"type":"message","status":"completed","content":[{"type":"output_text","text":"Да, слушаю!"}]}]}'.encode("utf-8")
         with patch("lana_core.chat._open_openai_request", urlopen):
             answer = openai_transport("fake-key","gpt-4.1-mini",[{"role":"user","content":"Привет"}])
         self.assertEqual(answer, "Да, слушаю!")
