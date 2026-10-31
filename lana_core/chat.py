@@ -17,7 +17,8 @@ from .memory import MemoryStore
 from .usage import UsageGate, UsageLimitError
 
 MAX_INPUT_CHARS = 2400
-MAX_HISTORY_MESSAGES = 16
+MAX_HISTORY_MESSAGES = 40
+MAX_HISTORY_CHARS = 16_000
 MAX_ANSWER_CHARS = 5000
 MAX_OPENAI_RESPONSE_BYTES = 1_048_576
 DEFAULT_MODEL = "gpt-4.1-mini"
@@ -27,6 +28,8 @@ PERSONA = (
     "Ты Лана — русскоязычная голосовая помощница пользователя. "
     "Разговаривай естественно, по делу, с уместным юмором. "
     "Отвечай кратко, пока не попросят подробнее. "
+    "Помни тему текущего разговора и не задавай повторно вопросы, на которые уже ответили. "
+    "Если просьба ясна, сначала помоги по существу, а не возвращай вопрос пользователю. "
     "Ты отдельное приложение и не имеешь автоматически доступ к ChatGPT-перепискам, "
     "почте, серверу, телефону и торговым роботам. "
     "Не придумывай выполненных действий или подключений. "
@@ -52,6 +55,30 @@ def approved_context(notes, consent):
     if type(consent) is not bool:
         raise ValueError("invalid consent")
     return [note.strip() for note in notes]
+
+def bounded_dialogue(history_newest_first):
+    """Select recent complete user/assistant turns within a bounded prompt budget.
+
+    Rows arrive newest first from SQLite. Retaining whole pairs prevents an
+    orphan assistant answer being sent as the first historical message. This
+    keeps longer spoken conversations useful without unlimited API context.
+    """
+    pairs = []
+    chars = 0
+    for i in range(0, len(history_newest_first) - 1, 2):
+        assistant, user = history_newest_first[i:i + 2]
+        if assistant[0] != "assistant" or user[0] != "user":
+            break  # Do not use an inconsistent / interrupted history.
+        size = len(user[1]) + len(assistant[1])
+        if chars + size > MAX_HISTORY_CHARS:
+            break
+        chars += size
+        pairs.append((user, assistant))
+    return [
+        {"role": role, "content": text}
+        for pair in reversed(pairs) for role, text in pair
+    ]
+
 
 class ChatError(RuntimeError):
     pass
@@ -212,7 +239,7 @@ class ChatService:
                     "ORDER BY id DESC LIMIT ?",
                     (conversation_id, MAX_HISTORY_MESSAGES),
                 ).fetchall()
-            context = [{"role": role, "content": text} for role, text in reversed(history)]
+            context = bounded_dialogue(history)
             # Admin-approved facts only; LLM never writes persistent memory.
             background = self.memory.context()
             if background:
@@ -248,7 +275,7 @@ class ChatService:
                     "INSERT INTO chat_messages(conversation_id,role,text) VALUES (?,?,?)",
                     (conversation_id, "assistant", answer),
                 )
-                # Keep at most 16 messages per conversation. No cross-user history.
+                # Keep at most 20 complete exchanges per conversation. No cross-user history.
                 con.execute(
                     "DELETE FROM chat_messages WHERE conversation_id=? AND id NOT IN "
                     "(SELECT id FROM chat_messages WHERE conversation_id=? "
