@@ -114,7 +114,7 @@ def openai_transport(api_key, model, messages, *, timeout=28):
             raise ChatError("ИИ вернул некорректный ответ.")
         if item.get("type") != "message":
             continue  # Ignore reasoning/tool items, never mistake them for speech.
-        if item.get("status") != "completed":
+        if item.get("status") not in (None, "completed"):
             raise ChatError("ИИ не завершил ответ. Повторный запрос не отправлен.")
         parts = item.get("content", [])
         if not isinstance(parts, list):
