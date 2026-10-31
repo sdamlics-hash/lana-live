@@ -101,12 +101,21 @@ def openai_transport(api_key, model, messages, *, timeout=28):
         raise ChatError("ИИ вернул некорректный ответ.") from None
     if not isinstance(data, dict) or not isinstance(data.get("output"), list):
         raise ChatError("ИИ вернул некорректный ответ.")
+    # A Responses API result can contain text even when generation ended early.
+    # Never speak/store a partial response as a completed assistant turn.
+    # No automatic retry: the attempt was already charged by UsageGate.
+    if data.get("status") != "completed":
+        raise ChatError("ИИ не завершил ответ. Повторный запрос не отправлен.")
 
     # Responses API: assistant text lives in output[].content[].text.
     segments = []
     for item in data["output"]:
         if not isinstance(item, dict):
             raise ChatError("ИИ вернул некорректный ответ.")
+        if item.get("type") != "message":
+            continue  # Ignore reasoning/tool items, never mistake them for speech.
+        if item.get("status") != "completed":
+            raise ChatError("ИИ не завершил ответ. Повторный запрос не отправлен.")
         parts = item.get("content", [])
         if not isinstance(parts, list):
             raise ChatError("ИИ вернул некорректный ответ.")
