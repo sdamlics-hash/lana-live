@@ -6,7 +6,8 @@ import unittest
 import uuid
 from pathlib import Path
 from unittest.mock import patch
-from lana_core.chat import ChatService, ChatError, MAX_HISTORY_MESSAGES, PERSONA, openai_transport
+from lana_core.chat import (ChatService, ChatError, MAX_HISTORY_MESSAGES, MAX_HISTORY_CHARS,
+                            PERSONA, openai_transport)
 from lana_core.api import create_server
 from lana_core.engine import TaskQueue
 
@@ -42,13 +43,52 @@ class ChatTests(unittest.TestCase):
         self.assertEqual(self.calls[-1][0]["content"], "Первый вопрос")
 
     def test_no_cross_conversation_leak_and_history_bound(self):
-        for x in range(12):
+        for x in range(23):
             self.chat.answer(self.cid, f"Вопрос {x}")
         self.chat.answer(str(uuid.uuid4()), "Новый диалог")
         self.assertEqual(len(self.calls[-1]), 1)
         with self.chat._connect() as con:
             count = con.execute("SELECT COUNT(*) FROM chat_messages WHERE conversation_id=?", (self.cid,)).fetchone()[0]
         self.assertEqual(count, MAX_HISTORY_MESSAGES)
+
+    def test_long_chat_survives_restart_with_complete_recent_turns(self):
+        for x in range(24):
+            self.chat.answer(self.cid, f"Тема {x}: " + "а" * 320)
+        # History survives restart, while a fresh conversation stays isolated.
+        restarted = ChatService(self.db, api_key="mock-key", transport=self.chat.transport)
+        restarted.answer(self.cid, "Помнишь тему?")
+        context = self.calls[-1]
+        self.assertEqual(context[-1]["content"], "Помнишь тему?")
+        history = context[:-1]
+        self.assertLessEqual(len(history), MAX_HISTORY_MESSAGES)
+        self.assertEqual(len(history) % 2, 0)
+        self.assertEqual([item["role"] for item in history],
+                         ["user", "assistant"] * (len(history) // 2))
+        self.assertLessEqual(sum(len(item["content"]) for item in history),
+                             MAX_HISTORY_CHARS)
+        self.assertTrue(any("Тема 23:" in item["content"] for item in history))
+        self.assertFalse(any("Тема 0:" in item["content"] for item in history))
+        with restarted._connect() as con:
+            count = con.execute("SELECT COUNT(*) FROM chat_messages WHERE conversation_id=?",
+                                (self.cid,)).fetchone()[0]
+        self.assertEqual(count, MAX_HISTORY_MESSAGES)
+
+    def test_verbose_voice_history_has_strict_context_budget(self):
+        calls = []
+        def verbose(_key, _model, messages):
+            calls.append(messages)
+            return "Ответ: " + "б" * 4000
+        self.chat.transport = verbose
+        for i in range(5):
+            self.chat.answer(self.cid, f"Вопрос-{i} " + "я" * 2380)
+        history = calls[-1][:-1]
+        self.assertEqual([item["role"] for item in history],
+                         ["user", "assistant"] * (len(history) // 2))
+        self.assertLessEqual(sum(len(item["content"]) for item in history),
+                             MAX_HISTORY_CHARS)
+        self.assertTrue(any("Вопрос-3" in item["content"] for item in history))
+        self.assertFalse(any("Вопрос-0" in item["content"] for item in history))
+        self.assertLess(len(history), 8)
 
     def test_fail_without_real_key_or_bad_text(self):
         other = ChatService(self.db, api_key="", transport=self.chat.transport)
