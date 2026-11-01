@@ -124,6 +124,58 @@ class HttpsChatAcceptanceTests(unittest.TestCase):
         self.assertEqual(self.chat.usage.status()["attempts_today"], 2)
         self.assertEqual(len(self.chat.memory.all()), 1)
 
+    def test_25_sequential_tls_turns_and_one_failed_attempt(self):
+        """Twenty-five complete turns over real loopback TLS; no microphone or paid API.
+
+        A simulated model outage must consume exactly one quota attempt, leave
+        durable history unchanged, and permit a later explicit user question.
+        """
+        for index in range(25):
+            code, reply = self.post_chat(f"Тема-{index}")
+            self.assertEqual(code, 200, f"turn {index}")
+            self.assertEqual(reply["conversation_id"], self.conversation)
+            self.assertIn("Да, я здесь", reply["answer"])
+        self.assertEqual(len(self.calls), 25)
+        self.assertEqual(self.chat.usage.status()["attempts_today"], 25)
+        # At turn 25, the provider sees the most recent 20 complete pairs.
+        context = self.calls[-1]
+        self.assertEqual(len(context), 41)
+        self.assertEqual(context[0]["content"], "Тема-4")
+        self.assertEqual(context[-1]["content"], "Тема-24")
+        self.assertEqual([m["role"] for m in context[:-1]], ["user", "assistant"] * 20)
+        with self.chat._connect() as con:
+            before = con.execute(
+                "SELECT role,text FROM chat_messages WHERE conversation_id=? ORDER BY id",
+                (self.conversation,),
+            ).fetchall()
+        self.assertEqual(len(before), 40)
+
+        from lana_core.chat import ChatError
+        original = self.chat.transport
+        def unavailable(*_args):
+            raise ChatError("ИИ временно недоступен")
+        self.chat.transport = unavailable
+        try:
+            code, _ = self.post_chat("Тема-сбой")
+            self.assertEqual(code, 503)
+        finally:
+            self.chat.transport = original
+        self.assertEqual(len(self.calls), 25)
+        self.assertEqual(self.chat.usage.status()["attempts_today"], 26)
+        with self.chat._connect() as con:
+            after = con.execute(
+                "SELECT role,text FROM chat_messages WHERE conversation_id=? ORDER BY id",
+                (self.conversation,),
+            ).fetchall()
+        self.assertEqual(after, before)
+
+        code, _ = self.post_chat("Тема-продолжение")
+        self.assertEqual(code, 200)
+        self.assertEqual(len(self.calls), 26)
+        self.assertEqual(self.chat.usage.status()["attempts_today"], 27)
+        self.assertEqual(self.calls[-1][-1]["content"], "Тема-продолжение")
+        self.assertNotIn("Тема-сбой", str(self.calls[-1]))
+
     def test_context_notes_require_consent_over_tls(self):
         bad, _ = self.post_chat(
             "Помни заметку", context_notes=["Личное напоминание"]
