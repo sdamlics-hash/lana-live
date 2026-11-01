@@ -28,6 +28,7 @@ class SpokenStopAcceptanceTests(unittest.TestCase):
                 "LanaVoiceCommands.Action.IGNORE ->", 1
             )[0]
             self.assertIn("voiceSession.start()", stop)
+            self.assertIn("recognitionBinder?.stopConversation(recognitionOwner)", stop)
             self.assertIn("conversationActive = false", stop)
             self.assertIn("stopCloudVoice()", stop)
             self.assertIn("tts?.stop()", stop)
@@ -36,8 +37,17 @@ class SpokenStopAcceptanceTests(unittest.TestCase):
             self.assertNotIn("speakFromLana(", stop)
             self.assertNotIn("LanaSpeechClient.audio(", stop)
             self.assertLess(stop.index("voiceSession.start()"), stop.index("tts?.speak("))
-            # The stale network callback still checks the session ticket.
-            self.assertIn("if (!voiceSession.accepts(requestTicket)) return@runOnUiThread", main)
+            # Current V4.4 architecture owns GPT/TTS in the foreground service,
+            # not in the Activity's old requestTicket callback.
+            service = (out / "app/src/main/java/ai/dreibus/lanalive/LanaVoiceKeepAliveService.kt").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn("fun stopConversation(owner: String)", service)
+            self.assertIn("conversation.stop()", service)
+            self.assertLess(
+                stop.index("recognitionBinder?.stopConversation(recognitionOwner)"),
+                stop.index("tts?.speak("),
+            )
 
 if __name__ == "__main__":
     unittest.main()
