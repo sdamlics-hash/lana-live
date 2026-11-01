@@ -332,6 +332,26 @@ class LanaDeviceClockTest {
     }
 
 '''
+    # A spoken STOP must not allow a delayed GPT reply to resume the conversation.
+    # Use device TTS for the acknowledgement: STOP itself must not request paid cloud speech.
+    s=one(s, '''LanaVoiceCommands.Action.STOP -> {
+                            conversationActive = false
+                            speakFromLana("Хорошо. Позови, когда понадоблюсь.")
+                        }''', '''LanaVoiceCommands.Action.STOP -> {
+                            voiceSession.start() // Invalidate in-flight reply/recognition callbacks.
+                            recognitionBinder?.stopConversation(recognitionOwner) // Cancel service-owned GPT/TTS.
+                            conversationActive = false
+                            stopCloudVoice()
+                            tts?.stop()
+                            status.text = "Разговор остановлен. Жду обращения к Лане."
+                            if (ttsReady) {
+                                val outcome = tts?.speak(
+                                    "Хорошо. Позови, когда понадоблюсь.",
+                                    TextToSpeech.QUEUE_FLUSH, null,
+                                    "lana_voice_" + voiceSession.current())
+                                if (outcome != TextToSpeech.SUCCESS) retryVoice()
+                            } else retryVoice()
+                        }''')
     s=one(s, '    private fun appendHistory(line: String) {', restore+'    private fun appendHistory(line: String) {')
     (src/'LanaConnectionCipher.kt').write_text(r'''package ai.dreibus.lanalive
 
