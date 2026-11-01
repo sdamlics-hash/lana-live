@@ -339,6 +339,7 @@ class LanaDeviceClockTest {
                             speakFromLana("Хорошо. Позови, когда понадоблюсь.")
                         }''', '''LanaVoiceCommands.Action.STOP -> {
                             voiceSession.start() // Invalidate in-flight reply/recognition callbacks.
+                            recognitionBinder?.stopConversation(recognitionOwner) // Cancel service-owned GPT/TTS.
                             conversationActive = false
                             stopCloudVoice()
                             tts?.stop()
