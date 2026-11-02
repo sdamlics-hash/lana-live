@@ -33,6 +33,7 @@ jobs:
           python -m unittest discover -s android_memory/tests -v
           python -m unittest discover -s android_connections/tests -v
           python -m unittest discover -s android_dialogue/tests -v
+          python .github/scripts/test_lana_v40_navigation.py
           python android_dialogue/patch_v40.py LANA_V3_3_ANDROID_APP_SOURCE.zip /tmp/lana-v40
       - uses: actions/setup-java@v4
         with:
