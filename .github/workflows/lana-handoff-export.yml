@@ -1,0 +1,52 @@
+name: LANA owner all-branch source handoff (no deploy)
+on:
+  pull_request:
+    paths:
+      - 'handoff_tools/export_branch_tips.py'
+      - '.github/workflows/lana-handoff-export.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  owner_handoff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout branch for read-only export
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Fetch all source branch refs
+        run: |
+          git fetch --no-tags origin '+refs/heads/*:refs/remotes/origin/*'
+          git for-each-ref --format='%(refname:short)' refs/remotes/origin | wc -l
+      - name: Export and verify all branch snapshots with credential exclusions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LANA_PRIORITY_BRANCH: fix/lana-v40-emulator-tab-readiness-20261102
+          LANA_EXPORT_OUTPUT: /tmp/lana-handoff/source_bundle.zip
+        run: |
+          set -euo pipefail
+          python3 -B handoff_tools/export_branch_tips.py
+          python3 - <<'PY'
+          import json,zipfile
+          p='/tmp/lana-handoff/source_bundle.zip'
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              info=json.loads(z.read('METADATA.json'))
+              assert info['branch_count']>=2,info
+              assert info['unique_file_blobs']>0,info
+              assert 'README_GITHUB_SOURCE.txt' in z.namelist()
+              assert 'BRANCH_MANIFEST.json' in z.namelist()
+              assert 'LATEST_SOURCE/README.md' in z.namelist() or info['repository'].endswith('/lana-server-ops')
+              print('LANA_OWNER_HANDOFF_SOURCE_EXPORT_VALID',info)
+          PY
+      - name: Save source handoff as one artifact ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: lana-owner-source-snapshot-lana-live-20261104
+          path: /tmp/lana-handoff/source_bundle.zip
+          retention-days: 30
+          if-no-files-found: error
