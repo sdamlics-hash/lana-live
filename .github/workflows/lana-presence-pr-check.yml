@@ -1,0 +1,46 @@
+name: LANA Presence Candidate Checks
+on:
+  push:
+    branches: ['work/lana-1045-presence-no-leaf-20261121']
+  pull_request:
+    paths:
+      - 'android_team/src/LanaPresenceView.kt'
+      - 'android_speech/patch_v44.py'
+      - '.github/workflows/lana-presence-pr-check.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Verify portrait badge removed and motion retained
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path('android_team/src/LanaPresenceView.kt').read_text()
+          assert 'drawMark(canvas, frame.right' not in s
+          assert 'drawAndroid(canvas,frame)' in s
+          assert 'BitmapFactory.decodeResource' not in s
+          assert 'canvas.drawRoundRect(173f,124f,227f,130f' in s
+          for state in ('Слушаю', 'Думаю', 'Отвечаю'):
+              assert state in s
+          assert 'drawVoiceActivity(canvas,' in s
+          print('Portrait badge removal and state animation checks passed')
+          PY
+      - name: Generate Android candidate
+        run: python android_speech/patch_v44.py LANA_V3_3_ANDROID_APP_SOURCE.zip /tmp/lana-presence-check
+      - name: Compile and run Android unit tests (unsigned; no release)
+        working-directory: /tmp/lana-presence-check
+        run: gradle --no-daemon testDebugUnitTest assembleDebug

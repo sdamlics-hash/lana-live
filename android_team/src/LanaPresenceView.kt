@@ -10,9 +10,7 @@ import kotlin.math.min
  * never downloaded at runtime. Voice-state animation is only visual feedback.
  */
 internal class LanaPresenceView(context: Context) : View(context) {
-    private val photoPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val portrait by lazy { BitmapFactory.decodeResource(resources, R.drawable.lana_avatar_1039) }
     private var phase = 0f
     private var state = "Готова"
     private val animated get() = state in setOf("Слушаю", "Думаю", "Отвечаю")
@@ -44,39 +42,100 @@ internal class LanaPresenceView(context: Context) : View(context) {
         super.onVisibilityChanged(changedView,visibility)
         if (isAttachedToWindow) manageMotion()
     }
-    /** Small original LANA leaf-orbit emblem. Drawn from vectors at runtime,
-     * so its visibility never depends on an external image or network fetch.
-     */
-    /** Elegant single-leaf brand mark. No rotor motion or false audio animation. */
-    private fun drawMark(canvas: Canvas, x: Float, y: Float, r: Float, accent: Int) {
+    /** Local vector android face; never loads an external image. */
+    private fun drawAndroid(canvas: Canvas, frame: RectF) {
         canvas.save()
-        canvas.translate(x,y)
-        strokePaint.reset()
-        strokePaint.isAntiAlias = true
-        strokePaint.style = Paint.Style.FILL
-        strokePaint.color = Color.argb(226, 25, 62, 46)
-        canvas.drawCircle(0f,0f,r,strokePaint)
-        strokePaint.style = Paint.Style.STROKE
-        strokePaint.color = Color.argb(if(animated) (136+phase*95).toInt() else 132, 229, 199, 103)
-        strokePaint.strokeWidth = maxOf(1.3f,r*.08f)
-        canvas.drawCircle(0f,0f,r*.83f,strokePaint)
-        val leaf = Path().apply {
-            moveTo(-r*.55f,r*.48f)
-            cubicTo(-r*.66f,-r*.26f,-r*.07f,-r*.83f,r*.61f,-r*.70f)
-            cubicTo(r*.59f,r*.12f,r*.15f,r*.56f,-r*.55f,r*.48f)
-            close()
+        canvas.translate(frame.left, frame.top)
+        canvas.scale(frame.width()/400f, frame.height()/540f)
+        val p=Paint(Paint.ANTI_ALIAS_FLAG)
+        fun fill(color:Int) { p.reset(); p.isAntiAlias=true; p.color=color; p.style=Paint.Style.FILL }
+        fun round(l:Float,t:Float,r:Float,b:Float,rad:Float,c:Int) {
+            fill(c); canvas.drawRoundRect(l,t,r,b,rad,rad,p)
         }
-        strokePaint.style = Paint.Style.FILL
-        strokePaint.color = Color.rgb(105,208,107)
-        canvas.drawPath(leaf,strokePaint)
-        strokePaint.style = Paint.Style.STROKE
-        strokePaint.color = Color.rgb(244,220,130)
-        strokePaint.strokeWidth = maxOf(1.1f,r*.09f)
-        strokePaint.strokeCap = Paint.Cap.ROUND
-        canvas.drawLine(-r*.39f,r*.37f,r*.43f,-r*.51f,strokePaint)
-        strokePaint.style = Paint.Style.FILL
-        strokePaint.color = if(state=="Отвечаю") Color.rgb(255,229,150) else accent
-        canvas.drawCircle(-r*.38f,r*.38f,r*.10f,strokePaint)
+        val navy=Color.rgb(14,26,43)
+        val steel=Color.rgb(69,101,125)
+        val silver=Color.rgb(178,197,207)
+        val cyan=Color.rgb(98,227,238)
+        val glow=when(state) {
+            "Слушаю" -> Color.rgb(83,221,164)
+            "Думаю" -> Color.rgb(240,190,91)
+            "Отвечаю" -> Color.rgb(246,139,174)
+            else -> cyan
+        }
+        fill(Color.rgb(8,16,30)); canvas.drawRect(0f,0f,400f,540f,p)
+        p.shader=RadialGradient(200f,215f,270f,intArrayOf(Color.rgb(38,77,100),Color.rgb(8,16,30)),null,Shader.TileMode.CLAMP)
+        canvas.drawRect(0f,0f,400f,540f,p);p.shader=null
+        fill(Color.argb(80,100,211,235));p.style=Paint.Style.STROKE;p.strokeWidth=2f
+        canvas.drawCircle(200f,230f,172f,p);canvas.drawCircle(200f,230f,155f,p)
+        // Shoulder armor and illuminated sternum
+        val shoulders=Path().apply {
+            moveTo(24f,540f);lineTo(34f,460f);cubicTo(43f,414f,91f,398f,145f,391f)
+            lineTo(255f,391f);cubicTo(309f,398f,357f,414f,366f,460f)
+            lineTo(376f,540f);close()
+        }
+        fill(navy);canvas.drawPath(shoulders,p)
+        fill(steel);canvas.drawRoundRect(135f,365f,265f,455f,32f,32f,p)
+        round(158f,377f,242f,449f,20f,navy)
+        fill(glow);canvas.drawCircle(200f,417f,16f,p)
+        fill(Color.rgb(18,38,58));canvas.drawOval(45f,420f,154f,550f,p)
+        canvas.drawOval(246f,420f,355f,550f,p)
+        fill(silver);p.style=Paint.Style.STROKE;p.strokeWidth=5f
+        canvas.drawArc(52f,427f,155f,550f,188f,115f,false,p)
+        canvas.drawArc(245f,427f,348f,550f,237f,115f,false,p)
+        // Side head housings and hair-like cybernetic panels
+        fill(Color.rgb(23,45,66))
+        canvas.drawOval(79f,64f,321f,410f,p)
+        val left=Path().apply {
+            moveTo(132f,72f);cubicTo(42f,99f,48f,302f,74f,405f)
+            lineTo(112f,378f);lineTo(129f,179f);close()
+        }
+        fill(steel);canvas.drawPath(left,p)
+        val right=Path().apply {
+            moveTo(268f,72f);cubicTo(358f,99f,352f,302f,326f,405f)
+            lineTo(288f,378f);lineTo(271f,179f);close()
+        }
+        canvas.drawPath(right,p)
+        round(77f,202f,112f,296f,15f,Color.rgb(39,72,93))
+        round(288f,202f,323f,296f,15f,Color.rgb(39,72,93))
+        // Feminine tapered faceplate
+        val face=Path().apply {
+            moveTo(145f,98f);cubicTo(177f,74f,223f,74f,255f,98f)
+            cubicTo(295f,127f,299f,209f,289f,290f)
+            cubicTo(281f,347f,235f,384f,200f,390f)
+            cubicTo(165f,384f,119f,347f,111f,290f)
+            cubicTo(101f,209f,105f,127f,145f,98f);close()
+        }
+        fill(silver);canvas.drawPath(face,p)
+        val inner=Path().apply {
+            moveTo(149f,116f);cubicTo(180f,94f,220f,94f,251f,116f)
+            cubicTo(275f,149f,281f,214f,271f,283f)
+            cubicTo(265f,333f,231f,364f,200f,371f)
+            cubicTo(169f,364f,135f,333f,129f,283f)
+            cubicTo(119f,214f,125f,149f,149f,116f);close()
+        }
+        fill(Color.rgb(123,155,174));canvas.drawPath(inner,p)
+        fill(Color.rgb(195,215,220));canvas.drawOval(136f,129f,264f,329f,p)
+        // Crown and eyebrows
+        round(138f,109f,262f,150f,18f,Color.rgb(38,67,88))
+        fill(glow);canvas.drawRoundRect(173f,124f,227f,130f,3f,3f,p)
+        round(135f,207f,191f,220f,6f,navy)
+        round(209f,207f,265f,220f,6f,navy)
+        // Animated eyes, with active-state glow
+        val eyeH=if(state=="Думаю") 8f+phase*5f else 15f
+        round(145f,229f-eyeH/2f,187f,229f+eyeH/2f,8f,glow)
+        round(213f,229f-eyeH/2f,255f,229f+eyeH/2f,8f,glow)
+        fill(Color.rgb(19,45,60));canvas.drawCircle(166f,229f,5f,p)
+        canvas.drawCircle(234f,229f,5f,p)
+        // Nose and expression panel
+        fill(steel);canvas.drawRoundRect(194f,253f,206f,296f,5f,5f,p)
+        round(160f,311f,240f,341f,13f,Color.rgb(35,57,76))
+        val mouthHeight=if(state=="Отвечаю") 3f+phase*12f else 3f
+        round(176f,325f-mouthHeight/2f,224f,325f+mouthHeight/2f,4f,glow)
+        // Cheek and temple circuitry
+        fill(glow);p.style=Paint.Style.STROKE;p.strokeWidth=2.5f
+        canvas.drawLine(124f,267f,145f,284f,p);canvas.drawLine(255f,284f,276f,267f,p)
+        canvas.drawLine(107f,157f,127f,177f,p);canvas.drawLine(273f,177f,293f,157f,p)
+        fill(glow);canvas.drawCircle(145f,284f,3.5f,p);canvas.drawCircle(255f,284f,3.5f,p)
         canvas.restore()
     }
     /** Voice-phase feedback outside the portrait. Animation is cosmetic and
@@ -122,31 +181,13 @@ internal class LanaPresenceView(context: Context) : View(context) {
     override fun onDraw(canvas:Canvas) {
         super.onDraw(canvas)
         if(width<=0||height<=0)return
-        val image=portrait
-        if (image == null) {
-            drawMark(canvas,width/2f,height*.44f,min(width,height)*.27f,Color.rgb(77,175,100))
-            return
-        }
-        // Keep the full face and shoulders in the frame; no overlaid opaque circle.
-        val targetHeight=min(height*.83f,width*.64f)
-        val targetWidth=targetHeight*image.width/image.height
+        val targetHeight=min(height*.83f,width*.72f)
+        val targetWidth=targetHeight*400f/540f
         val dx=(width-targetWidth)/2f
         val dy=maxOf(2f,(height-targetHeight)*.10f)+if(animated)(phase-.5f)*height*.015f else 0f
         val frame=RectF(dx,dy,dx+targetWidth,dy+targetHeight)
         val rounding=targetWidth*.14f
-
-        strokePaint.reset(); strokePaint.isAntiAlias=true
-        strokePaint.color=Color.argb(if(animated) (40+20*phase).toInt() else 27,66,157,110)
-        strokePaint.style=Paint.Style.FILL
-        canvas.drawRoundRect(RectF(frame.left-8f,frame.top-8f,frame.right+8f,frame.bottom+8f),
-            rounding+8f,rounding+8f,strokePaint)
-
-        val mask=Path().apply { addRoundRect(frame,rounding,rounding,Path.Direction.CW) }
-        canvas.save()
-        canvas.clipPath(mask)
-        canvas.drawBitmap(image,null,frame,photoPaint)
-        canvas.restore()
-
+        drawAndroid(canvas,frame)
         val accent=when(state) {
             "Слушаю" -> Color.rgb(50,153,95)
             "Думаю" -> Color.rgb(195,152,76)
@@ -155,8 +196,7 @@ internal class LanaPresenceView(context: Context) : View(context) {
         }
         // The badge lives above the portrait, not on the face. A separate
         // drawable path avoids the masked fox/halo bug seen in 1036-1038.
-        val markR = min(targetWidth*.19f,24f*resources.displayMetrics.density)
-        drawMark(canvas, frame.right-markR*.28f, frame.top+markR*.52f, markR*.84f, accent)
+        // No corner leaf badge: keep the portrait unobstructed.
         strokePaint.color=accent
         strokePaint.style=Paint.Style.STROKE
         strokePaint.strokeWidth=if(animated) 3.2f else 1.7f
