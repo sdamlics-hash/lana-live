@@ -43,101 +43,16 @@ internal class LanaPresenceView(context: Context) : View(context) {
         if (isAttachedToWindow) manageMotion()
     }
     /** Local vector android face; never loads an external image. */
-    private fun drawAndroid(canvas: Canvas, frame: RectF) {
-        canvas.save()
-        canvas.translate(frame.left, frame.top)
-        canvas.scale(frame.width()/400f, frame.height()/540f)
-        val p=Paint(Paint.ANTI_ALIAS_FLAG)
-        fun fill(color:Int) { p.reset(); p.isAntiAlias=true; p.color=color; p.style=Paint.Style.FILL }
-        fun round(l:Float,t:Float,r:Float,b:Float,rad:Float,c:Int) {
-            fill(c); canvas.drawRoundRect(l,t,r,b,rad,rad,p)
-        }
-        val navy=Color.rgb(14,26,43)
-        val steel=Color.rgb(69,101,125)
-        val silver=Color.rgb(178,197,207)
-        val cyan=Color.rgb(98,227,238)
-        val glow=when(state) {
-            "Слушаю" -> Color.rgb(83,221,164)
-            "Думаю" -> Color.rgb(240,190,91)
-            "Отвечаю" -> Color.rgb(246,139,174)
-            else -> cyan
-        }
-        fill(Color.rgb(8,16,30)); canvas.drawRect(0f,0f,400f,540f,p)
-        p.shader=RadialGradient(200f,215f,270f,intArrayOf(Color.rgb(38,77,100),Color.rgb(8,16,30)),null,Shader.TileMode.CLAMP)
-        canvas.drawRect(0f,0f,400f,540f,p);p.shader=null
-        fill(Color.argb(80,100,211,235));p.style=Paint.Style.STROKE;p.strokeWidth=2f
-        canvas.drawCircle(200f,230f,172f,p);canvas.drawCircle(200f,230f,155f,p)
-        // Shoulder armor and illuminated sternum
-        val shoulders=Path().apply {
-            moveTo(24f,540f);lineTo(34f,460f);cubicTo(43f,414f,91f,398f,145f,391f)
-            lineTo(255f,391f);cubicTo(309f,398f,357f,414f,366f,460f)
-            lineTo(376f,540f);close()
-        }
-        fill(navy);canvas.drawPath(shoulders,p)
-        fill(steel);canvas.drawRoundRect(135f,365f,265f,455f,32f,32f,p)
-        round(158f,377f,242f,449f,20f,navy)
-        fill(glow);canvas.drawCircle(200f,417f,16f,p)
-        fill(Color.rgb(18,38,58));canvas.drawOval(45f,420f,154f,550f,p)
-        canvas.drawOval(246f,420f,355f,550f,p)
-        fill(silver);p.style=Paint.Style.STROKE;p.strokeWidth=5f
-        canvas.drawArc(52f,427f,155f,550f,188f,115f,false,p)
-        canvas.drawArc(245f,427f,348f,550f,237f,115f,false,p)
-        // Side head housings and hair-like cybernetic panels
-        fill(Color.rgb(23,45,66))
-        canvas.drawOval(79f,64f,321f,410f,p)
-        val left=Path().apply {
-            moveTo(132f,72f);cubicTo(42f,99f,48f,302f,74f,405f)
-            lineTo(112f,378f);lineTo(129f,179f);close()
-        }
-        fill(steel);canvas.drawPath(left,p)
-        val right=Path().apply {
-            moveTo(268f,72f);cubicTo(358f,99f,352f,302f,326f,405f)
-            lineTo(288f,378f);lineTo(271f,179f);close()
-        }
-        canvas.drawPath(right,p)
-        round(77f,202f,112f,296f,15f,Color.rgb(39,72,93))
-        round(288f,202f,323f,296f,15f,Color.rgb(39,72,93))
-        // Feminine tapered faceplate
-        val face=Path().apply {
-            moveTo(145f,98f);cubicTo(177f,74f,223f,74f,255f,98f)
-            cubicTo(295f,127f,299f,209f,289f,290f)
-            cubicTo(281f,347f,235f,384f,200f,390f)
-            cubicTo(165f,384f,119f,347f,111f,290f)
-            cubicTo(101f,209f,105f,127f,145f,98f);close()
-        }
-        fill(silver);canvas.drawPath(face,p)
-        val inner=Path().apply {
-            moveTo(149f,116f);cubicTo(180f,94f,220f,94f,251f,116f)
-            cubicTo(275f,149f,281f,214f,271f,283f)
-            cubicTo(265f,333f,231f,364f,200f,371f)
-            cubicTo(169f,364f,135f,333f,129f,283f)
-            cubicTo(119f,214f,125f,149f,149f,116f);close()
-        }
-        fill(Color.rgb(123,155,174));canvas.drawPath(inner,p)
-        fill(Color.rgb(195,215,220));canvas.drawOval(136f,129f,264f,329f,p)
-        // Crown and eyebrows
-        round(138f,109f,262f,150f,18f,Color.rgb(38,67,88))
-        fill(glow);canvas.drawRoundRect(173f,124f,227f,130f,3f,3f,p)
-        round(135f,207f,191f,220f,6f,navy)
-        round(209f,207f,265f,220f,6f,navy)
-        // Animated eyes, with active-state glow
-        val eyeH=if(state=="Думаю") 8f+phase*5f else 15f
-        round(145f,229f-eyeH/2f,187f,229f+eyeH/2f,8f,glow)
-        round(213f,229f-eyeH/2f,255f,229f+eyeH/2f,8f,glow)
-        fill(Color.rgb(19,45,60));canvas.drawCircle(166f,229f,5f,p)
-        canvas.drawCircle(234f,229f,5f,p)
-        // Nose and expression panel
-        fill(steel);canvas.drawRoundRect(194f,253f,206f,296f,5f,5f,p)
-        round(160f,311f,240f,341f,13f,Color.rgb(35,57,76))
-        val mouthHeight=if(state=="Отвечаю") 3f+phase*12f else 3f
-        round(176f,325f-mouthHeight/2f,224f,325f+mouthHeight/2f,4f,glow)
-        // Cheek and temple circuitry
-        fill(glow);p.style=Paint.Style.STROKE;p.strokeWidth=2.5f
-        canvas.drawLine(124f,267f,145f,284f,p);canvas.drawLine(255f,284f,276f,267f,p)
-        canvas.drawLine(107f,157f,127f,177f,p);canvas.drawLine(273f,177f,293f,157f,p)
-        fill(glow);canvas.drawCircle(145f,284f,3.5f,p);canvas.drawCircle(255f,284f,3.5f,p)
-        canvas.restore()
+    private val newPortrait by lazy {
+        val bytes = android.util.Base64.decode(PORTRAIT_WEBP, android.util.Base64.DEFAULT)
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
     }
+    private val portraitPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    private fun drawAndroid(canvas: Canvas, frame: RectF) {
+        val image = newPortrait ?: return
+        canvas.drawBitmap(image, null, frame, portraitPaint)
+    }
+    private val PORTRAIT_WEBP = "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"
     /** Voice-phase feedback outside the portrait. Animation is cosmetic and
      * driven only by the current state, never a fabricated microphone meter.
      */
@@ -181,8 +96,8 @@ internal class LanaPresenceView(context: Context) : View(context) {
     override fun onDraw(canvas:Canvas) {
         super.onDraw(canvas)
         if(width<=0||height<=0)return
-        val targetHeight=min(height*.83f,width*.72f)
-        val targetWidth=targetHeight*400f/540f
+        val targetHeight=min(height*.87f,width*.87f)
+        val targetWidth=targetHeight
         val dx=(width-targetWidth)/2f
         val dy=maxOf(2f,(height-targetHeight)*.10f)+if(animated)(phase-.5f)*height*.015f else 0f
         val frame=RectF(dx,dy,dx+targetWidth,dy+targetHeight)
