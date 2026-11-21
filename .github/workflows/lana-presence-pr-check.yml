@@ -31,7 +31,9 @@ jobs:
           from pathlib import Path
           s = Path('android_team/src/LanaPresenceView.kt').read_text()
           assert 'drawMark(canvas, frame.right' not in s
-          assert 'canvas.drawBitmap(image,null,frame,photoPaint)' in s
+          assert 'drawAndroid(canvas,frame)' in s
+          assert 'BitmapFactory.decodeResource' not in s
+          assert 'canvas.drawRoundRect(173f,124f,227f,130f' in s
           for state in ('Слушаю', 'Думаю', 'Отвечаю'):
               assert state in s
           assert 'drawVoiceActivity(canvas,' in s
