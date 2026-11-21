@@ -96,7 +96,7 @@ internal class LanaPresenceView(context: Context) : View(context) {
     override fun onDraw(canvas:Canvas) {
         super.onDraw(canvas)
         if(width<=0||height<=0)return
-        val targetHeight=min(height*.87f,width*.87f)
+        val targetHeight=min(height*.90f,width*.90f)
         val targetWidth=targetHeight
         val dx=(width-targetWidth)/2f
         val dy=maxOf(2f,(height-targetHeight)*.10f)+if(animated)(phase-.5f)*height*.015f else 0f
