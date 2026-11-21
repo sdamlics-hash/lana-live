@@ -155,8 +155,7 @@ internal class LanaPresenceView(context: Context) : View(context) {
         }
         // The badge lives above the portrait, not on the face. A separate
         // drawable path avoids the masked fox/halo bug seen in 1036-1038.
-        val markR = min(targetWidth*.19f,24f*resources.displayMetrics.density)
-        drawMark(canvas, frame.right-markR*.28f, frame.top+markR*.52f, markR*.84f, accent)
+        // No corner leaf badge: keep the portrait unobstructed.
         strokePaint.color=accent
         strokePaint.style=Paint.Style.STROKE
         strokePaint.strokeWidth=if(animated) 3.2f else 1.7f
