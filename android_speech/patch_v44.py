@@ -557,6 +557,7 @@ class LanaConnectionCipherTest {
     mascot_dir.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(ROOT/'android_team/assets/lana_fox.png', mascot_dir/'lana_fox.png')
     shutil.copyfile(ROOT/'android_team/assets/lana_avatar_1039.webp', mascot_dir/'lana_avatar_1039.webp')
+    shutil.copyfile(ROOT/'android_team/assets/lana_approved_1047.jpg', mascot_dir/'lana_approved_1047.jpg')
     ws=workspace.read_text()
     begin=ws.index('        val team = column().apply {')
     end=ws.index('        addPanel(team)', begin)
