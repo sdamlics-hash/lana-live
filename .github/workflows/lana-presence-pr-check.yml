@@ -1,5 +1,7 @@
 name: LANA Presence Candidate Checks
 on:
+  push:
+    branches: ['work/lana-1045-presence-no-leaf-20261121']
   pull_request:
     paths:
       - 'android_team/src/LanaPresenceView.kt'
