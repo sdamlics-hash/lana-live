@@ -60,10 +60,26 @@ class Library:
     def search(self, term):
         if not term:
             return []
-        return self.db.execute(
-            "SELECT b.title,c.section,c.content FROM chunks c JOIN books b ON b.id=c.book_id "
-            "WHERE instr(lower(c.content), lower(?)) > 0 ORDER BY b.title,c.section",
-            (term,)).fetchall()
+        # Reassemble chunks so matches crossing chunk boundaries are found.
+        rows = self.db.execute(
+            "SELECT b.id,b.title,b.chunk_size,c.section,c.content "
+            "FROM books b JOIN chunks c ON b.id=c.book_id "
+            "ORDER BY b.title,b.id,c.section").fetchall()
+        grouped = {}
+        for book_id, title, size, section, content in rows:
+            grouped.setdefault(book_id, [title, size, []])[2].append((section, content))
+        matches = []
+        for title, size, chunks in grouped.values():
+            full = "".join(part for _, part in chunks)
+            offset = 0
+            while True:
+                hit = full.lower().find(term.lower(), offset)
+                if hit == -1:
+                    break
+                section = hit // size
+                matches.append((title, section, chunks[section][1]))
+                offset = hit + 1
+        return matches
 
     def delete(self, book_id):
         with self.db:
