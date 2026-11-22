@@ -7,6 +7,8 @@ on:
       - '.github/workflows/lana-portrait-1048.yml'
       - 'android_speech/patch_v44.py'
       - 'android_team/src/LanaPresenceView.kt'
+  pull_request:
+    branches: ['build/lana-stable-first-signing']
   workflow_dispatch:
 
 permissions:
