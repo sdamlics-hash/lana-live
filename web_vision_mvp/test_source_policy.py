@@ -57,7 +57,7 @@ class SourcePolicyTests(unittest.TestCase):
     def test_27_onion(self):
         with self.assertRaises(ValueError): classify("https://foo.onion")
     def test_28_overlong_label(self):
-        with self.assertRaises(ValueError): classify("https://NaN.org")
+        with self.assertRaises(ValueError): classify("https://" + ("a" * 64) + ".org")
     def test_29_overlong_host(self):
         with self.assertRaises(ValueError): classify("https://NaNorg")
     def test_30_ftp(self):
