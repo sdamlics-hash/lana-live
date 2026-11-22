@@ -14,3 +14,8 @@ PENDING: Android CI and real Samsung storage/voice acceptance. No VM, Claude/Man
 - Parsed shipped JPEG header from GitHub contents (not inferred from screenshot): 144x144, 3,122 bytes. Found scaling path LanaPresenceView.drawAndroid via BitmapFactory + canvas.drawBitmap.
 - Recovered exact approved portrait from personal Library GIF (506x508, 6 frames), visually checked first-frame match, exported a static higher-resolution image. Source file remains in user Library.
 - Created isolated working branch work/lana-1048-clear-portrait-20261122. No binary uploaded to GitHub and no new APK built; all installation and 20-minute voice claims pending.
+
+## B2 implementation continuation — 2026-11-22
+- File bridge: exported 506x508 first-frame JPEG, SHA-256 d49b2e74abd37ca42869592910e0d9164d9ab14d0d8065b3976d39df3cac552e; Git create_blob returned SHA 721f0942a52689353e9bbfd1bcda647d0b8b38a9 matching local git hash-object. Temporary transfer text moved to Library trash.
+- Branch commit 8668259 changed only image blob; additional commits added a dedicated CI workflow and pull request #67 (draft). PR compare verified five changed paths only (portrait, workflow, three loop docs). Backup branch backup/lana-stable-1047-20261122 created.
+- In GitHub Actions run 45003835541 portrait source/header hash and generated app asset copy passed; full Gradle test/build is not yet complete. Also LANA Voice Repair and core package validation checks in progress. No release/installation performed.
