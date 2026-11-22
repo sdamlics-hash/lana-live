@@ -31,7 +31,7 @@ def classify(url):
     try:
         address = ip_address(hostname.strip("[]"))
     except ValueError:
-        if not re.fullmatch(r"[a-z0-9-]+(?:\\.[a-z0-9-]+)+", hostname):
+        if not re.fullmatch(r"[a-z0-9-]+(?:\.[a-z0-9-]+)+", hostname):
             raise ValueError("Invalid hostname")
         if any(part.startswith("-") or part.endswith("-") for part in hostname.split(".")):
             raise ValueError("Invalid hostname")
