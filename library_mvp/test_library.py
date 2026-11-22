@@ -83,6 +83,53 @@ class LibraryTests(unittest.TestCase):
         self.lib.ingest_txt(self.path, 4, stop_after=1)
         self.assertEqual(self.lib.search("c xy"), [])
 
+    def test_17_gap_does_not_fabricate(self):
+        b = self.lib.ingest_txt(self.path, 4)
+        self.lib.db.execute('DELETE FROM chunks WHERE book_id=? AND section=1', (b,))
+        self.assertEqual(self.lib.search('c end'), [])
+
+    def test_18_gap_keeps_existing_hits(self):
+        b = self.lib.ingest_txt(self.path, 4)
+        self.lib.db.execute('DELETE FROM chunks WHERE book_id=? AND section=1', (b,))
+        self.assertTrue(self.lib.search('end'))
+
+    def test_19_gap_preserves_original_section(self):
+        b = self.lib.ingest_txt(self.path, 4)
+        self.lib.db.execute('DELETE FROM chunks WHERE book_id=? AND section=1', (b,))
+        self.assertEqual(self.lib.search('end')[0][1], 2)
+
+    def test_20_multi_chunk_phrase(self):
+        self.lib.ingest_txt(self.path, 3)
+        self.assertTrue(self.lib.search('abc xyz end'))
+
+    def test_21_case_insensitive(self):
+        self.lib.ingest_txt(self.path, 4)
+        self.assertTrue(self.lib.search('XYZ'))
+
+    def test_22_empty_query(self):
+        self.lib.ingest_txt(self.path, 4)
+        self.assertEqual(self.lib.search(''), [])
+
+    def test_23_zero_chunk_size(self):
+        with self.assertRaises(ValueError):
+            self.lib.ingest_txt(self.path, 0)
+
+    def test_24_negative_chunk_size(self):
+        with self.assertRaises(ValueError):
+            self.lib.ingest_txt(self.path, -1)
+
+    def test_25_no_cross_book_join(self):
+        other = self.root / 'other.txt'
+        other.write_text('QWERTY')
+        self.lib.ingest_txt(self.path, 4)
+        self.lib.ingest_txt(other, 4)
+        self.assertEqual(self.lib.search('endQW'), [])
+
+    def test_26_duplicate_occurrences(self):
+        self.path.write_text('aaaaaa')
+        self.lib.ingest_txt(self.path, 2)
+        self.assertEqual(len(self.lib.search('aaa')), 4)
+
     def test_14_restart(self):
         b = self.lib.ingest_txt(self.path, 4, stop_after=1)
         other = Library(self.root / "db.sqlite")
