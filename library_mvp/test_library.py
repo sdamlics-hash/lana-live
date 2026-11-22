@@ -75,6 +75,14 @@ class LibraryTests(unittest.TestCase):
             self.lib.ingest_txt(p, 4)
         self.assertEqual(self.lib.db.execute("select count(*) from books").fetchone()[0], 5)
 
+    def test_15_cross_chunk_search(self):
+        self.lib.ingest_txt(self.path, 4)
+        self.assertTrue(self.lib.search("c xy"))
+
+    def test_16_cross_chunk_no_false_match(self):
+        self.lib.ingest_txt(self.path, 4, stop_after=1)
+        self.assertEqual(self.lib.search("c xy"), [])
+
     def test_14_restart(self):
         b = self.lib.ingest_txt(self.path, 4, stop_after=1)
         other = Library(self.root / "db.sqlite")
