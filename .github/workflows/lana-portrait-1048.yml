@@ -1,0 +1,67 @@
+name: LANA 1048 Portrait Quality CI
+on:
+  push:
+    branches: ['work/lana-1048-clear-portrait-20261122']
+    paths:
+      - 'android_team/assets/lana_approved_1047.jpg'
+      - '.github/workflows/lana-portrait-1048.yml'
+      - 'android_speech/patch_v44.py'
+      - 'android_team/src/LanaPresenceView.kt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Verify approved source is a full-size JPEG
+        run: |
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          p = Path("android_team/assets/lana_approved_1047.jpg")
+          b = p.read_bytes()
+          if b[:2] != b'\xff\xd8': raise SystemExit("Not JPEG")
+          i=2; dims=None
+          while i < len(b)-10:
+              if b[i] != 255: raise SystemExit("Invalid JPEG marker")
+              while i < len(b) and b[i] == 255: i += 1
+              marker=b[i]; i+=1
+              if marker in (0xD9,0xDA): break
+              if marker in range(0xD0,0xD8) or marker==0x01: continue
+              length=int.from_bytes(b[i:i+2],"big")
+              if length < 2: raise SystemExit("Invalid segment length")
+              if marker in (0xC0,0xC1,0xC2,0xC3):
+                  h=int.from_bytes(b[i+3:i+5],"big")
+                  w=int.from_bytes(b[i+5:i+7],"big")
+                  dims=(w,h)
+                  break
+              i+=length
+          assert dims == (506,508), f"Portrait lost resolution: {dims}"
+          digest=hashlib.sha256(b).hexdigest()
+          assert digest=="d49b2e74abd37ca42869592910e0d9164d9ab14d0d8065b3976d39df3cac552e", digest
+          print("Approved original portrait verified:",dims,digest)
+          PY
+      - name: Generate candidate (no signing or release)
+        run: python android_speech/patch_v44.py LANA_V3_3_ANDROID_APP_SOURCE.zip /tmp/lana-1048-check
+      - name: Verify Android drawable is exact reviewed source
+        run: |
+          cmp android_team/assets/lana_approved_1047.jpg /tmp/lana-1048-check/app/src/main/res/drawable-nodpi/lana_approved_1047.jpg
+          grep -q 'R.drawable.lana_approved_1047' android_team/src/LanaPresenceView.kt
+      - name: Unit tests and unsigned-for-release build
+        working-directory: /tmp/lana-1048-check
+        run: gradle --no-daemon testDebugUnitTest assembleDebug
