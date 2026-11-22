@@ -1,36 +1,30 @@
 """Offline, user-supplied webpage extraction. No fetching, scripts or login."""
 from html.parser import HTMLParser
-from urllib.parse import urljoin
 from source_policy import classify
 
 class _TextParser(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
-        self.depth = 0
+        self.hidden = []
         self.parts = []
         self.title_parts = []
         self.in_title = False
-        self.links = []
-        self.href = None
 
     def handle_starttag(self, tag, attrs):
-        if tag in ("script", "style", "noscript", "template"):
-            self.depth += 1
+        if tag in ("script", "style", "noscript", "template", "svg"):
+            self.hidden.append(tag)
         if tag == "title":
             self.in_title = True
-        if tag == "a":
-            self.href = dict(attrs).get("href")
 
     def handle_endtag(self, tag):
-        if tag in ("script", "style", "noscript", "template") and self.depth:
-            self.depth -= 1
+        if tag in ("script", "style", "noscript", "template", "svg") and tag in self.hidden:
+            # Do not expose hidden content if malformed HTML closes tags out of order.
+            self.hidden = self.hidden[:len(self.hidden) - 1 - self.hidden[::-1].index(tag)]
         if tag == "title":
             self.in_title = False
-        if tag == "a":
-            self.href = None
 
     def handle_data(self, data):
-        if self.depth:
+        if self.hidden:
             return
         text = " ".join(data.split())
         if not text:
