@@ -1,0 +1,24 @@
+name: LANA Library MVP Tests
+on:
+  push:
+    branches: ['feat/lana-library-ingest-spec-20261122']
+    paths:
+      - 'library_mvp/**'
+      - '.github/workflows/lana-library-mvp.yml'
+  pull_request:
+    paths:
+      - 'library_mvp/**'
+      - '.github/workflows/lana-library-mvp.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  txt-indexer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run 14 offline TXT indexing tests
+        run: python -m unittest discover -s library_mvp -p 'test_*.py' -v
