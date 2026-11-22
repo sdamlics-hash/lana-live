@@ -17,9 +17,8 @@ class _TextParser(HTMLParser):
             self.in_title = True
 
     def handle_endtag(self, tag):
-        if tag in ("script", "style", "noscript", "template", "svg") and tag in self.hidden:
-            # Do not expose hidden content if malformed HTML closes tags out of order.
-            self.hidden = self.hidden[:len(self.hidden) - 1 - self.hidden[::-1].index(tag)]
+        if tag in ("script", "style", "noscript", "template", "svg") and self.hidden and self.hidden[-1] == tag:
+            self.hidden.pop()
         if tag == "title":
             self.in_title = False
 
