@@ -35,5 +35,16 @@ class HtmlExtractionTests(unittest.TestCase):
         self.assertEqual(extract_html(URL, "")["text"], "")
     def test_youtube_is_not_watched(self):
         self.assertEqual(extract_html("https://youtu.be/abc", "<p>Video title</p>")["kind"], "youtube")
+    def test_nested_hidden(self):
+        self.assertEqual(extract_html(URL, "<script>hide<style>also hide</style>more hide</script><p>Visible</p>")["text"], "Visible")
+    def test_svg_hidden(self):
+        self.assertEqual(extract_html(URL, "<svg><text>icon labels</text></svg><p>Article</p>")["text"], "Article")
+    def test_malformed_hidden_stays_hidden(self):
+        self.assertEqual(extract_html(URL, "<script><style>hide</script>still hidden</style><p>Visible</p>")["text"], "Visible")
+    def test_title_not_body(self):
+        page = extract_html(URL, "<title>Headline</title><p>Story</p>")
+        self.assertEqual(page["text"], "Story")
+    def test_html_comment_ignored(self):
+        self.assertEqual(extract_html(URL, "<!-- ignore me --><p>Article</p>")["text"], "Article")
 if __name__ == "__main__":
     unittest.main()
