@@ -22,8 +22,10 @@ class Library:
         self.db.executescript(SCHEMA)
 
     def ingest_txt(self, path, chunk_size=2000, stop_after=None):
-        if chunk_size < 1:
+        if not isinstance(chunk_size, int) or isinstance(chunk_size, bool) or chunk_size < 1:
             raise ValueError("chunk_size must be positive")
+        if stop_after is not None and (not isinstance(stop_after, int) or isinstance(stop_after, bool) or stop_after < 0):
+            raise ValueError('stop_after must be nonnegative integer')
         data = Path(path).read_bytes()
         content = data.decode("utf-8", errors="strict")
         if not content.strip():
@@ -45,12 +47,17 @@ class Library:
                 self.db.execute(
                     "INSERT OR IGNORE INTO chunks VALUES (?,?,?)",
                     (digest, i, content[i*chunk_size:(i+1)*chunk_size]))
-        count = self.db.execute(
-            "SELECT COUNT(*) FROM chunks WHERE book_id=?", (digest,)).fetchone()[0]
+        stored = self.db.execute(
+            "SELECT section, content FROM chunks WHERE book_id=? ORDER BY section",
+            (digest,)).fetchall()
+        complete = len(stored) == sections and all(
+            section == i and part == content[i*chunk_size:(i+1)*chunk_size]
+            for i, (section, part) in enumerate(stored)
+        )
         with self.db:
             self.db.execute(
                 "UPDATE books SET status=? WHERE id=?",
-                ("COMPLETE" if count == sections else "PARTIAL", digest))
+                ("COMPLETE" if complete else "PARTIAL", digest))
         return digest
 
     def status(self, book_id):
