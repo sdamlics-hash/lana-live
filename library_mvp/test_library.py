@@ -130,6 +130,53 @@ class LibraryTests(unittest.TestCase):
         self.lib.ingest_txt(self.path, 2)
         self.assertEqual(len(self.lib.search('aaa')), 4)
 
+    def test_27_missing_section_not_complete(self):
+        b=self.lib.ingest_txt(self.path,4)
+        self.lib.db.execute('DELETE FROM chunks WHERE book_id=? AND section=1',(b,))
+        self.lib.ingest_txt(self.path,4,stop_after=0)
+        self.assertEqual(self.lib.status(b)[0],'PARTIAL')
+
+    def test_28_corrupted_section_not_complete(self):
+        b=self.lib.ingest_txt(self.path,4)
+        self.lib.db.execute('UPDATE chunks SET content=? WHERE book_id=? AND section=1',('WRONG',b))
+        self.lib.ingest_txt(self.path,4)
+        self.assertEqual(self.lib.status(b)[0],'PARTIAL')
+
+    def test_29_missing_section_recovers(self):
+        b=self.lib.ingest_txt(self.path,4)
+        self.lib.db.execute('DELETE FROM chunks WHERE book_id=? AND section=1',(b,))
+        self.lib.ingest_txt(self.path,4)
+        self.assertEqual(self.lib.status(b)[0],'COMPLETE')
+
+    def test_30_negative_stop_rejected(self):
+        with self.assertRaises(ValueError):
+            self.lib.ingest_txt(self.path,4,stop_after=-1)
+
+    def test_31_float_chunk_rejected(self):
+        with self.assertRaises(ValueError):
+            self.lib.ingest_txt(self.path,2.5)
+
+    def test_32_bool_chunk_rejected(self):
+        with self.assertRaises(ValueError):
+            self.lib.ingest_txt(self.path,True)
+
+    def test_33_float_stop_rejected(self):
+        with self.assertRaises(ValueError):
+            self.lib.ingest_txt(self.path,4,stop_after=0.5)
+
+    def test_34_bool_stop_rejected(self):
+        with self.assertRaises(ValueError):
+            self.lib.ingest_txt(self.path,4,stop_after=False)
+
+    def test_35_zero_stop_partial(self):
+        b=self.lib.ingest_txt(self.path,4,stop_after=0)
+        self.assertEqual(self.lib.status(b)[0],'PARTIAL')
+
+    def test_36_recovery_after_zero_stop(self):
+        b=self.lib.ingest_txt(self.path,4,stop_after=0)
+        self.lib.ingest_txt(self.path,4)
+        self.assertEqual(self.lib.status(b)[0],'COMPLETE')
+
     def test_14_restart(self):
         b = self.lib.ingest_txt(self.path, 4, stop_after=1)
         other = Library(self.root / "db.sqlite")
