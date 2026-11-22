@@ -1,0 +1,24 @@
+name: LANA Web Vision MVP Tests
+on:
+  push:
+    branches: ['feat/lana-library-ingest-spec-20261122']
+    paths:
+      - 'web_vision_mvp/**'
+      - '.github/workflows/lana-web-vision-mvp.yml'
+  pull_request:
+    paths:
+      - 'web_vision_mvp/**'
+      - '.github/workflows/lana-web-vision-mvp.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run offline source safety tests
+        run: python -m unittest discover -s web_vision_mvp -p 'test_*.py' -v
