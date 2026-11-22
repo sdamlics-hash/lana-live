@@ -70,15 +70,22 @@ class Library:
             grouped.setdefault(book_id, [title, size, []])[2].append((section, content))
         matches = []
         for title, size, chunks in grouped.values():
-            full = "".join(part for _, part in chunks)
-            offset = 0
-            while True:
-                hit = full.lower().find(term.lower(), offset)
-                if hit == -1:
-                    break
-                section = hit // size
-                matches.append((title, section, chunks[section][1]))
-                offset = hit + 1
+            # Never join across missing sections: that would invent text.
+            runs = []
+            for section, part in chunks:
+                if not runs or section != runs[-1][-1][0] + 1:
+                    runs.append([])
+                runs[-1].append((section, part))
+            for run in runs:
+                full = "".join(part for _, part in run)
+                offset = 0
+                while True:
+                    hit = full.lower().find(term.lower(), offset)
+                    if hit == -1:
+                        break
+                    section_index = hit // size
+                    matches.append((title, run[section_index][0], run[section_index][1]))
+                    offset = hit + 1
         return matches
 
     def delete(self, book_id):
