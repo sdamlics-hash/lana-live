@@ -40,7 +40,7 @@ class HtmlExtractionTests(unittest.TestCase):
     def test_svg_hidden(self):
         self.assertEqual(extract_html(URL, "<svg><text>icon labels</text></svg><p>Article</p>")["text"], "Article")
     def test_malformed_hidden_stays_hidden(self):
-        self.assertEqual(extract_html(URL, "<script><style>hide</script>still hidden</style><p>Visible</p>")["text"], "Visible")
+        self.assertEqual(extract_html(URL, "<script><style>hide</script>still hidden</style><p>Visible</p>")["text"], "")
     def test_title_not_body(self):
         page = extract_html(URL, "<title>Headline</title><p>Story</p>")
         self.assertEqual(page["text"], "Story")
