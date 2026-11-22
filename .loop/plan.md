@@ -10,3 +10,11 @@ Build ONE integrated memory batch, no APK for isolated one-line fixes:
 
 Tests: Kotlin JVM + Android emulator persisted-record verification; no SECRET in artifact, no external model calls. For physical acceptance: Samsung 1043 remains until an integrated candidate is verified; 10 voice commands and reboot/persistence plus backup/restore, without uninstall. Do not merge/publish with red CI. No production service changes. After five failed repair loops or same cause repeated, stop and revisit architecture.
 Rollback: tag lana-stable-1043 unchanged, same signing identity and package; keep backup before dangerous restoration; reinstall/downgrade forbidden as potential data loss.
+
+
+## B2 — LANA 1048 portrait clarity + voice acceptance (2026-11-22)
+Baseline: signed LANA 1047 published 2026-11-21, SHA 745518f9; never overwrite/delete installed 1047 or signing material. Isolated branch: work/lana-1048-clear-portrait-20261122.
+Reproduced flaw: shipped drawable android_team/assets/lana_approved_1047.jpg is 144x144 pixels (3,122 bytes); BitmapFactory scales it into a much larger Canvas. User observed blur.
+Source recovery: user's own Library file "Futuristiska LANA AI portreta animācijā.gif" includes the approved art with six frames, each 506x508. First frame matches approved LANA AI robot portrait; a static 506x508 candidate has been extracted locally.
+Acceptance: replace 144px drawable with a >=500px version of the SAME approved portrait, no new identity; verify source dimensions, resource wiring, Android unit tests/build, package/signing/version metadata and release asset hash. Do not call a build a device pass. Independent Samsung acceptance: 20 minutes of real speech, ten or more consecutive turns, STOP interrupts reliably, no duplicate turns, memory checkbox selection survives screen reopen and process restart.
+Blockers: high-resolution binary not yet committed to GitHub, so NO 1048 APK or physical voice claim. No changes to server, GOLD/KRAKEN, secrets, or REAL. Rollback: keep signed release 1047 intact; new build only after checks pass and certificate matches prior signed package.
