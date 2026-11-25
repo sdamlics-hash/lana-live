@@ -5,3 +5,5 @@
 - Regression scenarios specified: unrelated speech, command truncation, project A/B segregation, save fail/throw, duplicate facts, read after restart, invalid backup, confirmed restore.
 - Risks: AndroidKeystore behavior must be checked on emulator and Samsung; no release based only on Kotlin compilation. No real device test yet.
 - Independent review and physical persistence remain pending; CI results not yet known. After 5 cycles, rethink method.
+
+1053 self-review: refresh on resume, preserve pending item if installed, read live selection and retain explicit confirmation. Playback remains unverified.

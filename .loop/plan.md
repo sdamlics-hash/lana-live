@@ -18,3 +18,7 @@ Reproduced flaw: shipped drawable android_team/assets/lana_approved_1047.jpg is 
 Source recovery: user's own Library file "Futuristiska LANA AI portreta animācijā.gif" includes the approved art with six frames, each 506x508. First frame matches approved LANA AI robot portrait; a static 506x508 candidate has been extracted locally.
 Acceptance: replace 144px drawable with a >=500px version of the SAME approved portrait, no new identity; verify source dimensions, resource wiring, Android unit tests/build, package/signing/version metadata and release asset hash. Do not call a build a device pass. Independent Samsung acceptance: 20 minutes of real speech, ten or more consecutive turns, STOP interrupts reliably, no duplicate turns, memory checkbox selection survives screen reopen and process restart.
 Blockers: high-resolution binary not yet committed to GitHub, so NO 1048 APK or physical voice claim. No changes to server, GOLD/KRAKEN, secrets, or REAL. Rollback: keep signed release 1047 intact; new build only after checks pass and certificate matches prior signed package.
+
+## 1053 — offline speech settings recovery
+Baseline 82c7b96, Samsung 1051 transcribed phrases and produced text but no confirmed audio.
+Check that returning from Android settings refreshes installed voices, preview uses the current picker item, and approval remains explicit. Rollback for source is the baseline ref. Device acceptance is audible Russian replies including 25 turns and STOP.

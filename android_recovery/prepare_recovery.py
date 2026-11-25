@@ -22,14 +22,14 @@ s=s[:a]+'''    private fun refreshVoiceChoices() {
         val choices = tts?.voices.orEmpty().filter { it.locale.language == "ru" && !it.isNetworkConnectionRequired && !it.features.orEmpty().contains("notInstalled") }.sortedBy { it.name }
         val picker = findViewById<android.widget.Spinner>(R.id.voiceChoice)
         val prefs = getPreferences(MODE_PRIVATE)
-        picker.adapter = android.widget.ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,listOf("Выбери и прослушай женский голос")+choices.map { it.name })
-        picker.setSelection((choices.indexOfFirst { it.name==prefs.getString("confirmed_offline_voice","") }+1).coerceAtLeast(0))
-        picker.onItemSelectedListener=object:android.widget.AdapterView.OnItemSelectedListener {
-            override fun onNothingSelected(parent:android.widget.AdapterView<*>?) {}
-            override fun onItemSelected(parent:android.widget.AdapterView<*>?,view:android.view.View?,position:Int,id:Long){
-                prefs.edit().putString("voice_name",choices.getOrNull(position-1)?.name.orEmpty()).apply()
-            }
-        }
+        val previous = picker.selectedItem as? String
+        val names = choices.map { it.name }.distinct()
+        val confirmed = prefs.getString("confirmed_offline_voice", "")
+        val selection = previous?.takeIf { it in names } ?: confirmed
+        val hint = if (names.isEmpty()) "Русские офлайн-голоса не найдены" else "Выбери и прослушай женский голос"
+        picker.adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, listOf(hint) + names)
+        picker.setSelection(names.indexOf(selection) + 1)
+        findViewById<Button>(R.id.testVoice).isEnabled = names.isNotEmpty()
     }
 
 '''+s[b:]
@@ -38,7 +38,8 @@ b=s.index('    private fun refreshVoiceChoices()',a)
 s=s[:a]+'''        findViewById<Button>(R.id.testVoice).setOnClickListener {
             if (!memoryTransferAllowed()) { voiceDiagnostic("Сначала останови разговор."); return@setOnClickListener }
             val engine=tts
-            val name=prefs.getString("voice_name","").orEmpty()
+            val picker = findViewById<android.widget.Spinner>(R.id.voiceChoice)
+            val name = (picker.selectedItem as? String).takeIf { picker.selectedItemPosition > 0 }.orEmpty()
             val voice=engine?.voices.orEmpty().firstOrNull { it.name==name && it.locale.language=="ru" && !it.isNetworkConnectionRequired && !it.features.orEmpty().contains("notInstalled") }
             if(engine==null || voice==null || engine.setVoice(voice)!=TextToSpeech.SUCCESS) {
                 android.widget.Toast.makeText(this,"Выбери установленный русский офлайн-голос. При необходимости загрузи женский голос в настройках Android.",android.widget.Toast.LENGTH_LONG).show()
@@ -46,7 +47,10 @@ s=s[:a]+'''        findViewById<Button>(R.id.testVoice).setOnClickListener {
             }
             engine.setSpeechRate(prefs.getInt("voice_rate",100).coerceIn(60,140)/100f)
             engine.setPitch(1f)
-            if(engine.speak("Привет! Это проба моего голоса. Как тебе звучание?",TextToSpeech.QUEUE_FLUSH,null,"lana_local_voice_preview")!=TextToSpeech.SUCCESS)return@setOnClickListener
+            if(engine.speak("Привет! Это проба моего голоса. Как тебе звучание?",TextToSpeech.QUEUE_FLUSH,null,"lana_local_voice_preview")!=TextToSpeech.SUCCESS) {
+                voiceDiagnostic("Android не запустил пробу голоса. Проверь выбранный голос в настройках Android.")
+                return@setOnClickListener
+            }
             android.app.AlertDialog.Builder(this).setTitle("Подходит этот женский голос?")
                 .setMessage("Подтверди только после прослушивания. Другой голос Лана сама не подставит.")
                 .setNegativeButton("Нет") { _,_ -> engine.stop() }
@@ -61,6 +65,8 @@ piece=s[a:b]
 assert 'speakFromLana(LanaGreetings.next())' in piece
 s=s[:a]+piece.replace('speakFromLana(LanaGreetings.next())','listenOnce()')+s[b:]
 s=replace(s,'    override fun onDestroy() {','    override fun onDestroy() {\n        if (::memoryTransfer.isInitialized) memoryTransfer.closeOfflineSetup()')
+s=replace(s,'val name = prefs.getString("voice_name", "").orEmpty()', 'val name = prefs.getString("confirmed_offline_voice", "").orEmpty()')
+s=replace(s,'        super.onResume()', '        super.onResume()\n        refreshVoiceChoices()')
 p.write_text(s)
 change('LanaRuntimeSpeaker.kt','val selected = local.firstOrNull { it.name == voice.voiceName } ?: local.firstOrNull()','val selected = local.firstOrNull { it.name == voice.voiceName && voice.voiceName.isNotBlank() }')
 change('LanaRuntimeSpeaker.kt','Офлайн-голос русского языка не установлен. Ответ доступен текстом.','Выбери и подтверди женский офлайн-голос в Настройках. Ответ доступен текстом.')

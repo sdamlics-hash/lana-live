@@ -13,3 +13,6 @@ Next: integrate recovered 506x508 still into this isolated branch replacing low-
 
 ## B2 continuation — 2026-11-22 / source integrated
 Recovered full-size first GIF frame was encoded to 506x508 JPEG (SHA-256 d49b2e74abd37ca42869592910e0d9164d9ab14d0d8065b3976d39df3cac552e) and uploaded as Git blob 721f0942a52689353e9bbfd1bcda647d0b8b38a9; verified byte-for-byte by matching local Git blob SHA. Committed to isolated branch at 8668259d70a2a4b1155277777a14dc4fd57a71b1, replacing 144x144 resource. Draft PR #67 compares to existing signed 1047 build branch; stable and device unchanged. CI: image dimension/hash check and exact generated drawable copy passed in run 45003835541; full Gradle and other PR checks remain IN_PROGRESS as last checked. Safe backup ref backup/lana-stable-1047-20261122 preserves baseline. Next: review CI conclusions, fix failures if any, and ONLY THEN consider signed 1048 candidate; 20-minute real Samsung acceptance remains outstanding. Do not report 1048 APK ready before evidence.
+
+## Offline voice follow-up — 1053 source
+Baseline 82c7b96 (1051). Updated voice settings refresh and preview selection. Generated project and identity checks passed. Next: compile and sign with original key, check 25 audible turns and STOP on Samsung. APK and device acceptance pending.

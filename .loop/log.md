@@ -19,3 +19,5 @@ PENDING: Android CI and real Samsung storage/voice acceptance. No VM, Claude/Man
 - File bridge: exported 506x508 first-frame JPEG, SHA-256 d49b2e74abd37ca42869592910e0d9164d9ab14d0d8065b3976d39df3cac552e; Git create_blob returned SHA 721f0942a52689353e9bbfd1bcda647d0b8b38a9 matching local git hash-object. Temporary transfer text moved to Library trash.
 - Branch commit 8668259 changed only image blob; additional commits added a dedicated CI workflow and pull request #67 (draft). PR compare verified five changed paths only (portrait, workflow, three loop docs). Backup branch backup/lana-stable-1047-20261122 created.
 - In GitHub Actions run 45003835541 portrait source/header hash and generated app asset copy passed; full Gradle test/build is not yet complete. Also LANA Voice Repair and core package validation checks in progress. No release/installation performed.
+
+1053: generated same-package Android project and checked four code assertions and the manifest removal marker for INTERNET. No local Gradle/device run.
