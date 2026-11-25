@@ -1,0 +1,24 @@
+from pathlib import Path
+import shutil, subprocess, sys, re
+ROOT=Path(__file__).resolve().parents[1]
+out=Path(sys.argv[1]).resolve()
+phase=sys.argv[2]
+src=out/'app/src/main/java/ai/dreibus/lanalive'
+tests=out/'app/src/test/java/ai/dreibus/lanalive'
+if phase=='dependency':
+    subprocess.run([sys.executable,str(ROOT/'android_offline/patch_offline.py'),str(out)],check=True)
+    p=out/'app/build.gradle.kts'
+    s=p.read_text()
+    assert s.count('dependencies {')==1
+    s=s.replace('dependencies {','dependencies {\n    implementation("com.google.ai.edge.litertlm:litertlm-android:0.18.0")',1)
+    p.write_text(s)
+    for f in (out/'build.gradle.kts',out/'settings.gradle.kts',out/'gradle/libs.versions.toml'):
+        if f.exists():
+            for line in f.read_text().splitlines():
+                if 'kotlin' in line.lower() or 'com.android' in line.lower(): print(f.name+': '+line.strip())
+    shutil.copyfile(ROOT/'android_local_model/LanaModelImport.kt',src/'LanaModelImport.kt')
+    shutil.copyfile(ROOT/'android_local_model/ImportChecks.kt',tests/'LanaModelImportChecks.kt')
+    (tests/'LanaModelImportTest.kt').write_text('package ai.dreibus.lanalive\nimport org.junit.Test\nclass LanaModelImportTest { @Test fun tenImportScenarios() { main() } }\n')
+elif phase=='api':
+    shutil.copyfile(ROOT/'android_local_model/LanaLocalModelProbe.kt',src/'LanaLocalModelProbe.kt')
+else: raise ValueError("unknown phase")
