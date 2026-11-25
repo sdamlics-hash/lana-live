@@ -60,7 +60,7 @@ internal class LanaUpdater(private val activity:MainActivity){
         if(busy)return
         ui("Проверяю APK…",true)
         Thread{
-            val part=File(dir,"offline-update.part")
+            val part=File(dir,"offline-update.part.apk")
             val ok=runCatching{
                 check(dir.isDirectory||dir.mkdirs())
                 requireNotNull(activity.contentResolver.openInputStream(uri)).use{input->
