@@ -1,0 +1,126 @@
+name: LANA 1049 Offline Install Candidate
+on:
+  push:
+    branches: ['work/lana-1049-offline-install-check-20261125']
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: lana-stable-signing
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Generate offline and rollback candidates
+        run: |
+          python android_integrated/prepare_integrated.py /tmp/lana-install
+          git worktree add --detach /tmp/lana-baseline d50453e8c4fbec634e16848e9c959e3bf2e1b9d0
+          (cd /tmp/lana-baseline && python android_speech/patch_v44.py LANA_V3_3_ANDROID_APP_SOURCE.zip /tmp/lana-rollback)
+          python android_delivery/prepare_identity.py /tmp/lana-install 1049
+          python android_delivery/prepare_identity.py /tmp/lana-rollback 1050
+      - name: Compile and test offline update
+        working-directory: /tmp/lana-install
+        run: gradle --no-daemon testDebugUnitTest assembleDebug
+      - name: Compile and test rollback
+        working-directory: /tmp/lana-rollback
+        run: gradle --no-daemon testDebugUnitTest assembleDebug
+      - name: Verify offline manifest before signing
+        run: |
+          set -euo pipefail
+          TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          "$TOOLS/aapt" dump permissions /tmp/lana-install/app/build/outputs/apk/debug/app-debug.apk | tee /tmp/lana-offline-permissions.txt
+          if grep -Fq android.permission.INTERNET /tmp/lana-offline-permissions.txt; then exit 1; fi
+      - name: Restore persistent signing key
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SIGNING_PASSWORD: ${{ secrets.LANA_SIGNING_PASSWORD }}
+          INITIALIZE_SIGNING: "false"
+        run: |
+          python - <<'PY'
+          import json, os, urllib.request, zipfile, io, pathlib, subprocess
+          password = os.environ.get('SIGNING_PASSWORD', '')
+          if len(password) < 20:
+              raise SystemExit('Set secret LANA_SIGNING_PASSWORD to at least 20 characters before running.')
+          class SafeRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, request, fp, code, msg, headers, url):
+                  redirected = super().redirect_request(request, fp, code, msg, headers, url)
+                  if redirected is not None:
+                      redirected.remove_header('Authorization')
+                  return redirected
+          opener = urllib.request.build_opener(SafeRedirect())
+          request = urllib.request.Request(
+              'https://api.github.com/repos/'+os.environ['GH_REPO']+'/actions/artifacts?name=LANA-PERSISTENT-SIGNING-KEY&per_page=100',
+              headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'], 'Accept':'application/vnd.github+json'})
+          with opener.open(request, timeout=30) as response:
+              artifacts = json.load(response)['artifacts']
+          live = [a for a in artifacts if not a['expired']]
+          root = pathlib.Path('/tmp/lana-signing')
+          root.mkdir(mode=0o700)
+          key = root/'lana-stable.p12'
+          if live:
+              artifact = max(live, key=lambda a: a['id'])
+              request = urllib.request.Request(artifact['archive_download_url'],
+                  headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'], 'Accept':'application/vnd.github+json'})
+              with opener.open(request, timeout=30) as response:
+                  archive = response.read()
+              with zipfile.ZipFile(io.BytesIO(archive)) as z:
+                  key.write_bytes(z.read('lana-stable.p12'))
+          else:
+              if artifacts or os.environ.get('INITIALIZE_SIGNING') != 'true':
+                  raise SystemExit('No usable persistent key. Restore its backup; first initialization requires explicit initialize_signing=true.')
+              subprocess.run(['keytool','-genkeypair','-keystore',str(key),'-storetype','PKCS12',
+                  '-alias','lana-stable','-keyalg','RSA','-keysize','3072','-validity','10000',
+                  '-dname','CN=LANA Stable Signing','-storepass:env','SIGNING_PASSWORD',
+                  '-keypass:env','SIGNING_PASSWORD'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+          key.chmod(0o600)
+          subprocess.run(['keytool','-list','-keystore',str(key),'-storepass:env','SIGNING_PASSWORD'],
+              check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+          print('Persistent encrypted signing key ready; password never printed.')
+          PY
+      - name: Sign with existing key and compare certificate to released 1048
+        env:
+          SIGNING_PASSWORD: ${{ secrets.LANA_SIGNING_PASSWORD }}
+        run: |
+          set -euo pipefail
+          TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          curl -fsSL --retry 2 --max-time 180 'https://github.com/sdamlics-hash/lana-live/releases/download/lana-stable-1048/LANA-STABLE-VOICE.apk' -o /tmp/lana-1048.apk
+          echo '7550f583a06f10cd045a9bd6e321b55c8fe47ecd0b3f38de8039a2669b6ae720  /tmp/lana-1048.apk' | sha256sum -c -
+          "$TOOLS/apksigner" verify --print-certs /tmp/lana-1048.apk > /tmp/lana-old-cert.txt
+          mkdir -p /tmp/lana-delivery
+          for item in 'install:1049:LANA-OFFLINE-1049-TEST.apk' 'rollback:1050:LANA-ROLLBACK-1050.apk'; do
+            IFS=: read -r dir version filename <<< "$item"
+            apk="/tmp/lana-$dir/app/build/outputs/apk/debug/app-debug.apk"
+            "$TOOLS/aapt" dump badging "$apk" | grep -F "package: name='ai.dreibus.lanalive.stablevoice' versionCode='$version'"
+            "$TOOLS/apksigner" sign --ks /tmp/lana-signing/lana-stable.p12 --ks-key-alias lana-stable --ks-pass env:SIGNING_PASSWORD --key-pass env:SIGNING_PASSWORD --out "/tmp/lana-delivery/$filename" "$apk"
+            "$TOOLS/apksigner" verify --verbose --print-certs "/tmp/lana-delivery/$filename" > "/tmp/$dir-cert.txt"
+            diff <(grep 'certificate SHA-256 digest:' /tmp/lana-old-cert.txt) <(grep 'certificate SHA-256 digest:' "/tmp/$dir-cert.txt")
+          done
+          cp /tmp/lana-offline-permissions.txt /tmp/lana-delivery/
+          cp android_delivery/INSTALL_RU.md /tmp/lana-delivery/
+          (cd /tmp/lana-delivery && sha256sum *.apk > SHA256SUMS.txt)
+      - name: Remove local signing key copy
+        if: always()
+        run: rm -f /tmp/lana-signing/lana-stable.p12
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: LANA-1049-OFFLINE-TEST-AND-ROLLBACK
+          path: /tmp/lana-delivery/
+          if-no-files-found: error
+          retention-days: 14
