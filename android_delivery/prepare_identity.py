@@ -22,7 +22,7 @@ app.set(a+'label','LANA')
 for node in tree.iter():
     authority=node.get(a+'authorities')
     if authority:
-        assert '\${applicationId}' in authority or original in authority
+        assert '${applicationId}' in authority or original in authority
         node.set(a+'authorities',authority.replace(original,target))
 tree.write(manifest,encoding='unicode')
 print('Same package; candidate version',version)
