@@ -1,8 +1,4 @@
-# LANA OFFLINE 1049 — тестовая установка, не стабильный релиз
-1. До установки сохрани копии задач, заметок и памяти проектов из LANA 1048. Не удаляй приложение.
-2. Проверь SHA256SUMS.txt. Устанавливай только LANA-OFFLINE-1049-TEST.apk поверх 1048 после успешной CI-проверки. Если Android не предлагает обновление той же программы, остановись.
-3. Модель: Qwen3-0.6B.litertlm, 613722264 байт. Скачай отдельно в браузере один раз, затем импортируй локальный файл через интерфейс LANA. SHA256 c5f39b4191926786c3e6668b62af4d6eb15248dfc7a5348252a9b406f33f2108. 
-https://huggingface.co/litert-community/Qwen3-0.6B/resolve/e6687177e00897731e7716267eebd4eba0dde7c2/Qwen3-0.6B.litertlm
-4. Для проверки включи авиарежим с выключенным Wi-Fi. Сначала время, затем свободный вопрос текстом, затем голосом. Проверь STOP, повторный запуск, 20 минут разговора, историю и нагрев. Русские офлайн-пакеты распознавания и синтеза Android могут требовать предварительной загрузки. Ничего не отправляется через сеть LANA.
-5. Для возврата при проблеме предусмотрен LANA-ROLLBACK-1050.apk — код исходной 1048 с повышенным versionCode и той же подписью. Не устанавливай его одновременно или заранее. После возврата следующий релиз должен иметь versionCode >1050. Сохранение данных при реальном обновлении/возврате ещё требуется проверить.
-6. Встроенная проверка обновлений отключена в офлайн-режиме: дальнейшие APK устанавливаются вручную. GPT и Gemini отключены. Полноценный разговор и производительность локальной модели на планшете ещё не подтверждены.
+# LANA 1051 candidate
+Real 1049 on Samsung: installed and data present, new star visible. User reports male TTS and no response; Android code 13 confirms Russian recognition unavailable. Previous updater was deliberately removed to maintain zero INTERNET permission; restore a local signed-APK chooser and external browser access.
+Do not claim female voice or real microphone works before device verification. User explicitly previews/approves local voice; no arbitrary fallback. Optional Android speech model download is requested by user; if OS doesn't support Russian, implement separate offline recognizer next. Local Qwen model still needs one-time import. New APK not published as stable. 1052 rollback from original 1048, higher version with same signature. Preserve memory before installation. Native model performance and 20-minute real conversation not verified.
+20 JUnit scenarios added; CI has not yet run. No claim of fifty development loops.

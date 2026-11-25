@@ -1,7 +1,7 @@
-name: LANA 1049 Offline Install Candidate
+name: LANA 1051 Offline Recovery Candidate
 on:
   push:
-    branches: ['work/lana-1049-offline-install-check-20261125']
+    branches: ['work/lana-1051-offline-recovery-20261125']
 permissions:
   contents: read
   actions: read
@@ -28,11 +28,11 @@ jobs:
           gradle-version: '8.9'
       - name: Generate offline and rollback candidates
         run: |
-          python android_integrated/prepare_integrated.py /tmp/lana-install
+          python android_recovery/prepare_recovery.py /tmp/lana-install
           git worktree add --detach /tmp/lana-baseline d50453e8c4fbec634e16848e9c959e3bf2e1b9d0
           (cd /tmp/lana-baseline && python android_speech/patch_v44.py LANA_V3_3_ANDROID_APP_SOURCE.zip /tmp/lana-rollback)
-          python android_delivery/prepare_identity.py /tmp/lana-install 1049
-          python android_delivery/prepare_identity.py /tmp/lana-rollback 1050
+          python android_delivery/prepare_identity.py /tmp/lana-install 1051
+          python android_delivery/prepare_identity.py /tmp/lana-rollback 1052
       - name: Compile and test offline update
         working-directory: /tmp/lana-install
         run: gradle --no-daemon testDebugUnitTest assembleDebug
@@ -103,7 +103,7 @@ jobs:
           echo '7550f583a06f10cd045a9bd6e321b55c8fe47ecd0b3f38de8039a2669b6ae720  /tmp/lana-1048.apk' | sha256sum -c -
           "$TOOLS/apksigner" verify --print-certs /tmp/lana-1048.apk > /tmp/lana-old-cert.txt
           mkdir -p /tmp/lana-delivery
-          for item in 'install:1049:LANA-OFFLINE-1049-TEST.apk' 'rollback:1050:LANA-ROLLBACK-1050.apk'; do
+          for item in 'install:1051:LANA-OFFLINE-1051-TEST.apk' 'rollback:1052:LANA-ROLLBACK-1052.apk'; do
             IFS=: read -r dir version filename <<< "$item"
             apk="/tmp/lana-$dir/app/build/outputs/apk/debug/app-debug.apk"
             "$TOOLS/aapt" dump badging "$apk" | grep -F "package: name='ai.dreibus.lanalive.stablevoice' versionCode='$version'"
@@ -120,7 +120,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: LANA-1049-OFFLINE-TEST-AND-ROLLBACK
+          name: LANA-1051-OFFLINE-TEST-AND-ROLLBACK
           path: /tmp/lana-delivery/
           if-no-files-found: error
           retention-days: 14
