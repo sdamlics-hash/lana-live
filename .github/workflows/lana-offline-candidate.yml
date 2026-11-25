@@ -1,0 +1,43 @@
+name: LANA Offline Candidate
+on:
+  push:
+    branches: ['work/lana-1048-offline-core-20261125']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Generate local-only candidate
+        run: python android_offline/patch_offline.py /tmp/lana-offline
+      - name: Run Android unit tests and assemble candidate
+        working-directory: /tmp/lana-offline
+        run: gradle --no-daemon testDebugUnitTest assembleDebug
+      - name: Verify no INTERNET permission in final APK
+        run: |
+          set -euo pipefail
+          APK=$(find /tmp/lana-offline/app/build/outputs/apk/debug -name '*.apk' -print -quit)
+          AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt -type f | sort -V | tail -1)
+          test -n "$APK" && test -n "$AAPT"
+          "$AAPT" dump permissions "$APK" | tee /tmp/lana-offline-permissions.txt
+          if grep -Fq android.permission.INTERNET /tmp/lana-offline-permissions.txt; then exit 1; fi
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: lana-offline-verification-only
+          path: |
+            /tmp/lana-offline/app/build/test-results/testDebugUnitTest/
+            /tmp/lana-offline-permissions.txt
+          retention-days: 7
