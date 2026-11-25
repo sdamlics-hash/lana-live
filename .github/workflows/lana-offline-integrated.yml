@@ -1,0 +1,42 @@
+name: LANA Offline Integrated Candidate
+on:
+  push:
+    branches: ['work/lana-1048-offline-integrated-20261125']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Generate integrated candidate
+        run: python android_integrated/prepare_integrated.py /tmp/lana-integrated
+      - name: Android regressions and compile
+        working-directory: /tmp/lana-integrated
+        run: gradle --no-daemon testDebugUnitTest assembleDebug
+      - name: Check no INTERNET permission
+        run: |
+          set -euo pipefail
+          APK=$(find /tmp/lana-integrated/app/build/outputs/apk/debug -name '*.apk' -print -quit)
+          AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt -type f | sort -V | tail -1)
+          test -n "$APK" && test -n "$AAPT"
+          "$AAPT" dump permissions "$APK" | tee /tmp/lana-integrated-permissions.txt
+          if grep -Fq android.permission.INTERNET /tmp/lana-integrated-permissions.txt; then exit 1; fi
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: lana-integrated-verification
+          path: |
+            /tmp/lana-integrated/app/build/test-results/testDebugUnitTest/
+            /tmp/lana-integrated-permissions.txt

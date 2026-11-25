@@ -1,0 +1,3 @@
+# Offline integrated candidate
+Base e46ceef4ed038c90b8980ec1d0900b3e004ab47e; successful local model API build 45583540163; successful star build 45582852105.
+Ten independent JVM gate checks executed, all passed; 1000 successive admissions/cancellations. Native inference, cancellation, model import UI and actual device dialogue have not been tested. New branch combines model, star and local voice, no stable release. CPU per-turn engine initialization is conservative but may be slow; performance and native cancellation are explicit release gates. User must import verified model file before inference; no cloud fallback.
