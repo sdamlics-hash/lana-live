@@ -1,0 +1,64 @@
+name: LANA Native Russian Female Voice Probe
+on:
+  push:
+    branches: ['work/lana-local-female-voice-20261125']
+permissions:
+  contents: read
+jobs:
+  speech:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned inference runtime and verify model archive
+        run: |
+          python -m venv /tmp/lana-tts-venv
+          /tmp/lana-tts-venv/bin/pip install 'sherpa-onnx==1.12.14' 'numpy==2.2.6'
+          curl -fsSL --retry 2 --max-time 180 https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-ru_RU-irina-medium.tar.bz2 -o /tmp/lana-irina.tar.bz2
+          echo '1fc0f54e5e084fe287c07909f2f6e0ba6d857864cf800e3ab80286a4e8233008  /tmp/lana-irina.tar.bz2' | sha256sum -c -
+          mkdir -p /tmp/lana-voice-model
+          python -c "import tarfile; t=tarfile.open('/tmp/lana-irina.tar.bz2'); t.extractall('/tmp/lana-voice-model',filter='data')"
+      - name: Generate ten real Russian speech samples without network
+        run: |
+          sudo unshare --net -- /tmp/lana-tts-venv/bin/python android_female_voice/test_real_voice.py /tmp/lana-voice-model/vits-piper-ru_RU-irina-medium /tmp/lana-voice-result
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: lana-native-voice-metrics
+          path: /tmp/lana-voice-result/report.json
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Verify upstream AAR
+        run: |
+          curl -fsSL --retry 2 --max-time 180 https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.12.14/sherpa-onnx-static-link-onnxruntime-1.12.14.aar -o /tmp/sherpa.aar
+          echo '05532ae681f14f13e22642db950b96ba20326db0d3da4fabf0b058ad6cd41f66  /tmp/sherpa.aar' | sha256sum -c -
+      - name: Prepare experimental integration
+        run: python android_female_voice/prepare_probe.py /tmp/lana-female /tmp/sherpa.aar
+      - name: Compile probe with existing model and Android regressions
+        working-directory: /tmp/lana-female
+        run: gradle --no-daemon testDebugUnitTest assembleDebug
+      - name: Confirm offline package
+        run: |
+          set -euo pipefail
+          APK=$(find /tmp/lana-female/app/build/outputs/apk/debug -name '*.apk' -print -quit)
+          AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt -type f | sort -V | tail -1)
+          test -n "$APK" && test -n "$AAPT"
+          "$AAPT" dump permissions "$APK" | tee /tmp/lana-permissions.txt
+          if grep -Fq android.permission.INTERNET /tmp/lana-permissions.txt; then exit 1; fi
+          unzip -l "$APK" | grep 'lib/arm64-v8a/.*sherpa'

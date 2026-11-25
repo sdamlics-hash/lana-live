@@ -1,0 +1,5 @@
+# Local female voice research
+Base 82c7b962629afc0d6812dbea94ad7367f3126721. Installed 1051 remains unchanged. User has paused device-side tests and requested further development.
+Hypothesis: local neural synthesis can remove Google TTS voice selection and male fallback. Candidate Piper Irina via sherpa-onnx 1.12.14. Upstream archive and static AAR SHA256 pinned from GitHub release metadata. Static linking reduces ONNX collision risk; compile does not prove native loading.
+Model card https://huggingface.co/rhasspy/piper-voices/blob/main/ru/ru_RU/irina/medium/MODEL_CARD states dataset license unknown, so private research only; no redistribution of weights or samples and no APK release from this branch. Resolve rights or choose an alternative before shipping.
+Two independent CI jobs: actual ten-phrase CPU synthesis with network namespace disabled, WAV/PCM metrics, and Android compile probe. No speech result claimed until CI confirms. Even a green result is not a Samsung playback/quality test. Production integration needs audio-focus/STOP handling, local model provisioning and actual device checks.
