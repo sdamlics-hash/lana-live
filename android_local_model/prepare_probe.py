@@ -9,8 +9,10 @@ if phase=='dependency':
     subprocess.run([sys.executable,str(ROOT/'android_offline/patch_offline.py'),str(out)],check=True)
     p=out/'app/build.gradle.kts'
     s=p.read_text()
-    assert s.count('dependencies {')==1
-    s=s.replace('dependencies {','dependencies {\n    implementation("com.google.ai.edge.litertlm:litertlm-android:0.18.0")',1)
+    # Gradle accepts multiple dependencies blocks; do not assume the original whitespace.
+    dependency = 'implementation("com.google.ai.edge.litertlm:litertlm-android:0.18.0")'
+    assert dependency not in s
+    s += '\n\ndependencies {\n    ' + dependency + '\n}\n'
     p.write_text(s)
     for f in (out/'build.gradle.kts',out/'settings.gradle.kts',out/'gradle/libs.versions.toml'):
         if f.exists():
