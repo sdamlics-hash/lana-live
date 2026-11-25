@@ -7,6 +7,11 @@ src=out/'app/src/main/java/ai/dreibus/lanalive'
 tests=out/'app/src/test/java/ai/dreibus/lanalive'
 if phase=='dependency':
     subprocess.run([sys.executable,str(ROOT/'android_offline/patch_offline.py'),str(out)],check=True)
+    root_build=out/'build.gradle.kts'
+    root_text=root_build.read_text()
+    old='id("org.jetbrains.kotlin.android") version "2.1.0"'
+    assert root_text.count(old)==1, "Unexpected Kotlin plugin version"
+    root_build.write_text(root_text.replace(old,'id("org.jetbrains.kotlin.android") version "2.4.0"'))
     p=out/'app/build.gradle.kts'
     s=p.read_text()
     # Gradle accepts multiple dependencies blocks; do not assume the original whitespace.
