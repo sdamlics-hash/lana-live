@@ -18,6 +18,10 @@ if phase=='dependency':
     dependency = 'implementation("com.google.ai.edge.litertlm:litertlm-android:0.18.0")'
     assert dependency not in s
     s += '\n\ndependencies {\n    ' + dependency + '\n}\n'
+    old = 'kotlinOptions { jvmTarget = "1.8" }'
+    assert s.count(old) == 1, "Unexpected Kotlin JVM options"
+    s = s.replace(old, '')
+    s += '\n\nkotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8) } }\n'
     p.write_text(s)
     for f in (out/'build.gradle.kts',out/'settings.gradle.kts',out/'gradle/libs.versions.toml'):
         if f.exists():
