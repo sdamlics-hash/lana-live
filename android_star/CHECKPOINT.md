@@ -1,0 +1,3 @@
+# Star core, 25 November 2026
+Base 7ffd169dd94a1b1101eeafba63d777ae3a7e6f8e. Isolated sibling of the local-model branch, not a replacement for it.
+20/20 independent JVM geometry/state tests passed locally. The Android view and CI integration still require verification. The view uses vector graphics, nine stars, local gradients, and state-based pulsing, not real-time speech amplitude. STOP and errors freeze animation, hidden view cancels animator. No network permission and no release. Next: inspect CI, integrate with successful local-model branch, test on Samsung in airplane mode. 1048 untouched.
