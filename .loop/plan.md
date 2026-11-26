@@ -22,3 +22,8 @@ Blockers: high-resolution binary not yet committed to GitHub, so NO 1048 APK or 
 ## 1053 — offline speech settings recovery
 Baseline 82c7b96, Samsung 1051 transcribed phrases and produced text but no confirmed audio.
 Check that returning from Android settings refreshes installed voices, preview uses the current picker item, and approval remains explicit. Rollback for source is the baseline ref. Device acceptance is audible Russian replies including 25 turns and STOP.
+
+## 2026-11-26 — подтверждение пробы офлайн-голоса
+База e07bccc, на Samsung видна 1051. В 1053 кнопка сохранения доступна сразу после постановки пробы в очередь.
+Критерий: Android завершает именно текущую пробу до предложения сохранить голос. Ошибка, таймаут, уход с экрана и устаревший callback не дают сохранить результат. Приёмка на Samsung: слышимая проба, русский ответ, STOP и серия реплик в авиарежиме.
+Откат исходников — e07bccc. Установленную сборку и подпись сохраняем.

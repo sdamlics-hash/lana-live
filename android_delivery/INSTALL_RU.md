@@ -1,4 +1,7 @@
-# LANA 1051 candidate
-Real 1049 on Samsung: installed and data present, new star visible. User reports male TTS and no response; Android code 13 confirms Russian recognition unavailable. Previous updater was deliberately removed to maintain zero INTERNET permission; restore a local signed-APK chooser and external browser access.
-Do not claim female voice or real microphone works before device verification. User explicitly previews/approves local voice; no arbitrary fallback. Optional Android speech model download is requested by user; if OS doesn't support Russian, implement separate offline recognizer next. Local Qwen model still needs one-time import. New APK not published as stable. 1052 rollback from original 1048, higher version with same signature. Preserve memory before installation. Native model performance and 20-minute real conversation not verified.
-20 JUnit scenarios added; CI has not yet run. No claim of fifty development loops.
+# LANA 1055 для проверки на Samsung
+
+LANA-OFFLINE-1055-TEST.apk — обновление поверх текущей Ланы. Сохрани резервную копию данных Ланы перед установкой. В приложении нажми «Обновить LANA» и выбери APK, либо открой его из «Моих файлов». Для обновления удалять приложение не требуется.
+
+В настройках Ланы выбери русский офлайн-голос и запусти пробу. Сохрани голос, если действительно услышал фразу и голос подходит. Проверь одну голосовую реплику и STOP, затем несколько реплик в авиарежиме. Для свободных ответов нужна импортированная локальная модель.
+
+LANA-ROLLBACK-1056.apk — отдельный путь отката, только если нужно вернуться к базовой сборке. После его установки понадобится APK с номером выше 1056 для следующего обновления.

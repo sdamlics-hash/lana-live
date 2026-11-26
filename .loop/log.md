@@ -21,3 +21,5 @@ PENDING: Android CI and real Samsung storage/voice acceptance. No VM, Claude/Man
 - In GitHub Actions run 45003835541 portrait source/header hash and generated app asset copy passed; full Gradle test/build is not yet complete. Also LANA Voice Repair and core package validation checks in progress. No release/installation performed.
 
 1053: generated same-package Android project and checked four code assertions and the manifest removal marker for INTERNET. No local Gradle/device run.
+
+2026-11-26: получен CI-архив 1053/1054 (run 45634888320), обе SHA-256 сверены. В 1055 подтверждение пробы привязано к onDone конкретной реплики. Повторная генерация в занятую папку штатно отклонена, чистая генерация прошла. Приёмки на планшете пока нет.

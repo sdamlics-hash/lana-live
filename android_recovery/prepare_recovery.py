@@ -29,10 +29,12 @@ s=s[:a]+'''    private fun refreshVoiceChoices() {
         val hint = if (names.isEmpty()) "Русские офлайн-голоса не найдены" else "Выбери и прослушай женский голос"
         picker.adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, listOf(hint) + names)
         picker.setSelection(names.indexOf(selection) + 1)
-        findViewById<Button>(R.id.testVoice).isEnabled = names.isNotEmpty()
+        findViewById<Button>(R.id.testVoice).isEnabled = names.isNotEmpty() && cancelVoicePreview == null
     }
 
 '''+s[b:]
+s=replace(s, '    private var tts: TextToSpeech? = null', '''    private var tts: TextToSpeech? = null
+    private var cancelVoicePreview: (() -> Unit)? = null''')
 a=s.index('        findViewById<Button>(R.id.testVoice).setOnClickListener {',s.index('    private fun installVoiceControls()'))
 b=s.index('    private fun refreshVoiceChoices()',a)
 s=s[:a]+'''        findViewById<Button>(R.id.testVoice).setOnClickListener {
@@ -47,14 +49,51 @@ s=s[:a]+'''        findViewById<Button>(R.id.testVoice).setOnClickListener {
             }
             engine.setSpeechRate(prefs.getInt("voice_rate",100).coerceIn(60,140)/100f)
             engine.setPitch(1f)
-            if(engine.speak("Привет! Это проба моего голоса. Как тебе звучание?",TextToSpeech.QUEUE_FLUSH,null,"lana_local_voice_preview")!=TextToSpeech.SUCCESS) {
-                voiceDiagnostic("Android не запустил пробу голоса. Проверь выбранный голос в настройках Android.")
+            val id = java.util.UUID.randomUUID().toString()
+            val button = findViewById<Button>(R.id.testVoice)
+            button.isEnabled = false
+            lateinit var timeout: Runnable
+            val cancel: () -> Unit = {
+                cancelVoicePreview = null
+                button.removeCallbacks(timeout)
+                engine.setOnUtteranceProgressListener(null)
+                engine.stop()
+                refreshVoiceChoices()
+            }
+            fun complete(error: String?) {
+                if (cancelVoicePreview !== cancel) return
+                cancel()
+                if (error != null) {
+                    voiceDiagnostic(error)
+                    android.widget.Toast.makeText(this, error, android.widget.Toast.LENGTH_LONG).show()
+                    return
+                }
+                if (!memoryTransferAllowed()) return
+                android.app.AlertDialog.Builder(this).setTitle("Подходит этот женский голос?")
+                    .setMessage("Подтверди, если услышал пробу и тебе подходит голос.")
+                    .setNegativeButton("Нет", null)
+                    .setPositiveButton("Да, сохранить") { _,_ ->
+                        prefs.edit().putString("confirmed_offline_voice",name).apply()
+                    }.show()
+            }
+            timeout = Runnable { complete("Android не завершил пробу голоса вовремя.") }
+            cancelVoicePreview = cancel
+            val listener = object : UtteranceProgressListener() {
+                override fun onStart(utteranceId: String?) = Unit
+                override fun onDone(utteranceId: String?) {
+                    if (utteranceId == id) runOnUiThread { complete(null) }
+                }
+                override fun onError(utteranceId: String?) {
+                    if (utteranceId == id) runOnUiThread { complete("Ошибка воспроизведения пробы голоса.") }
+                }
+            }
+            if (engine.setOnUtteranceProgressListener(listener) != TextToSpeech.SUCCESS ||
+                engine.speak("Привет! Это проба моего голоса. Как тебе звучание?", TextToSpeech.QUEUE_FLUSH, null, id) != TextToSpeech.SUCCESS
+            ) {
+                complete("Android не запустил пробу голоса. Проверь выбранный голос в настройках Android.")
                 return@setOnClickListener
             }
-            android.app.AlertDialog.Builder(this).setTitle("Подходит этот женский голос?")
-                .setMessage("Подтверди только после прослушивания. Другой голос Лана сама не подставит.")
-                .setNegativeButton("Нет") { _,_ -> engine.stop() }
-                .setPositiveButton("Да, сохранить") { _,_ -> engine.stop();prefs.edit().putString("confirmed_offline_voice",name).commit() }.show()
+            button.postDelayed(timeout, 15000)
         }
     }
 
@@ -66,6 +105,8 @@ assert 'speakFromLana(LanaGreetings.next())' in piece
 s=s[:a]+piece.replace('speakFromLana(LanaGreetings.next())','listenOnce()')+s[b:]
 s=replace(s,'    override fun onDestroy() {','    override fun onDestroy() {\n        if (::memoryTransfer.isInitialized) memoryTransfer.closeOfflineSetup()')
 s=replace(s,'val name = prefs.getString("voice_name", "").orEmpty()', 'val name = prefs.getString("confirmed_offline_voice", "").orEmpty()')
+s=replace(s,'    override fun onStop() {', '    override fun onStop() {\n        cancelVoicePreview?.invoke()')
+s=replace(s,'    private fun startVoice() {', '    private fun startVoice() {\n        cancelVoicePreview?.invoke()')
 s=replace(s,'        super.onResume()', '        super.onResume()\n        refreshVoiceChoices()')
 p.write_text(s)
 change('LanaRuntimeSpeaker.kt','val selected = local.firstOrNull { it.name == voice.voiceName } ?: local.firstOrNull()','val selected = local.firstOrNull { it.name == voice.voiceName && voice.voiceName.isNotBlank() }')

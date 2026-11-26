@@ -3,7 +3,7 @@ import re, sys
 import xml.etree.ElementTree as ET
 root=Path(sys.argv[1])
 version=int(sys.argv[2])
-assert version in (1051,1052,1053,1054)
+assert version in (1051,1052,1053,1054,1055,1056)
 p=root/'app/build.gradle.kts'; source=p.read_text()
 source,n=re.subn(r'versionCode\s*=\s*\d+',f'versionCode = {version}',source)
 assert n==1

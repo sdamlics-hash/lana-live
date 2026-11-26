@@ -7,3 +7,5 @@
 - Independent review and physical persistence remain pending; CI results not yet known. After 5 cycles, rethink method.
 
 1053 self-review: refresh on resume, preserve pending item if installed, read live selection and retain explicit confirmation. Playback remains unverified.
+
+2026-11-26, самопроверка: в сгенерированном MainActivity проверены уникальный ID пробы, единственный путь к подтверждению через onDone, диагностика ошибок, таймаут и отмена при старте разговора/уходе с экрана. Android-сборку проверяет отдельный CI.

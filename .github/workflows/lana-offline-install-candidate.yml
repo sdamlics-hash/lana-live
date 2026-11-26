@@ -1,7 +1,7 @@
-name: LANA 1053 Offline Recovery Candidate
+name: LANA 1055 Offline Recovery Candidate
 on:
   push:
-    branches: ['fix/lana-voice-1053']
+    branches: ['work/lana-voice-followup']
 permissions:
   contents: read
   actions: read
@@ -31,8 +31,8 @@ jobs:
           python android_recovery/prepare_recovery.py /tmp/lana-install
           git worktree add --detach /tmp/lana-baseline d50453e8c4fbec634e16848e9c959e3bf2e1b9d0
           (cd /tmp/lana-baseline && python android_speech/patch_v44.py LANA_V3_3_ANDROID_APP_SOURCE.zip /tmp/lana-rollback)
-          python android_delivery/prepare_identity.py /tmp/lana-install 1053
-          python android_delivery/prepare_identity.py /tmp/lana-rollback 1054
+          python android_delivery/prepare_identity.py /tmp/lana-install 1055
+          python android_delivery/prepare_identity.py /tmp/lana-rollback 1056
       - name: Compile and test offline update
         working-directory: /tmp/lana-install
         run: gradle --no-daemon testDebugUnitTest assembleDebug
@@ -103,7 +103,7 @@ jobs:
           echo '7550f583a06f10cd045a9bd6e321b55c8fe47ecd0b3f38de8039a2669b6ae720  /tmp/lana-1048.apk' | sha256sum -c -
           "$TOOLS/apksigner" verify --print-certs /tmp/lana-1048.apk > /tmp/lana-old-cert.txt
           mkdir -p /tmp/lana-delivery
-          for item in 'install:1053:LANA-OFFLINE-1053-TEST.apk' 'rollback:1054:LANA-ROLLBACK-1054.apk'; do
+          for item in 'install:1055:LANA-OFFLINE-1055-TEST.apk' 'rollback:1056:LANA-ROLLBACK-1056.apk'; do
             IFS=: read -r dir version filename <<< "$item"
             apk="/tmp/lana-$dir/app/build/outputs/apk/debug/app-debug.apk"
             "$TOOLS/aapt" dump badging "$apk" | grep -F "package: name='ai.dreibus.lanalive.stablevoice' versionCode='$version'"
@@ -120,7 +120,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: LANA-1053-OFFLINE-TEST-AND-ROLLBACK
+          name: LANA-1055-OFFLINE-TEST-AND-ROLLBACK
           path: /tmp/lana-delivery/
           if-no-files-found: error
           retention-days: 14

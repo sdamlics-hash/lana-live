@@ -16,3 +16,6 @@ Recovered full-size first GIF frame was encoded to 506x508 JPEG (SHA-256 d49b2e7
 
 ## Offline voice follow-up — 1053 source
 Baseline 82c7b96 (1051). Updated voice settings refresh and preview selection. Generated project and identity checks passed. Next: compile and sign with original key, check 25 audible turns and STOP on Samsung. APK and device acceptance pending.
+
+## 2026-11-26 — кандидат 1055
+На Samsung видна 1051 и один свободный текстовый ответ. Звук и работа в авиарежиме не подтверждены. Архив 1053/1054 восстановлен и проверен по контрольным суммам. Ветка work/lana-voice-followup готовит 1055/1056. Следующий шаг после CI — короткий тест на Samsung: проба женского русского голоса, ответ, STOP, затем серия реплик в авиарежиме.
