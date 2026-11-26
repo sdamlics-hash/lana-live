@@ -86,10 +86,10 @@ class LanaVoiceKeepAliveService : Service() {
     private val loopGate = LanaHandsFreeGate()
     private var loopTicket = 0L
     private var awake = true
-    private fun stopLoop(reason: String = "local_stop") {
+    private fun stopLoop(reason: String = "local_stop", ended: Boolean = true) {
         event("loop_stop=" + reason); releaseWake()
         if (reason != "handover_to_screen") runCatching { backgroundTeam?.stop() }.onFailure { event("team_interrupt_not_saved") }
-        sessionEnded = true; loopActive = false; loopGate.stop(); loopHandler.removeCallbacksAndMessages(null)
+        sessionEnded = ended; loopActive = false; loopGate.stop(); loopHandler.removeCallbacksAndMessages(null)
         loopConfig = null; loopVoice = null; feedbackVoice = null
     }
     private fun resumeLoop() {
@@ -267,7 +267,11 @@ class LanaVoiceKeepAliveService : Service() {
                 if (foreground && loopConfig != null && loopVoice != null) { engine.detach(owner); takeOver() }
                 else {
                     engine.detach(owner)
-                    if (!foreground || !busy()) { stopLoop("screen_detached_without_foreground"); conversation.stop(); removeForeground(); stopSelf() }
+                    if (!foreground || !busy()) {
+                        // Temporarily hidden foreground screen: release the microphone without marking explicit STOP.
+                        stopLoop("screen_detached_without_foreground", ended = false)
+                        conversation.stop(); removeForeground(); stopSelf()
+                    }
                 }
             }
         }
