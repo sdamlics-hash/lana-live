@@ -205,7 +205,6 @@ class LanaVoiceKeepAliveService : Service() {
         resumeLoop()
     }
     private var foreground = false
-    private var startupFailure: String? = null
     internal inner class LocalBinder : Binder() {
         fun sessionEnded() = sessionEnded
         fun configureHandsFree(owner: String, request: LanaRuntimeRequest, voice: LanaRuntimeVoice, active: Boolean) {
@@ -225,7 +224,6 @@ class LanaVoiceKeepAliveService : Service() {
             val recovering = loopActive
             if (loopActive) { stopLoop("handover_to_screen"); engine.detach(loopOwner) }
             engine.attach(owner,events)
-            startupFailure?.let { reason -> startupFailure = null; engine.close(reason); return false }
             return recovering
         }
         fun listen(owner: String,ticket: Long, events: LanaServiceRecognizer.Observer) {
@@ -309,14 +307,11 @@ class LanaVoiceKeepAliveService : Service() {
         try {
             startForeground(2501,notification,ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
             foreground = true; event("foreground_started")
-            startupFailure = null
         } catch (error: Exception) {
             event("foreground_failed=" + error.javaClass.simpleName)
-            val reason = "Не удалось включить фоновый голосовой сервис. Запусти разговор на открытом экране."
-            startupFailure = if (engine.hasObserver()) null else reason
-            stopLoop(); conversation.stop()
-            engine.close(reason)
-            removeForeground(); stopSelf()
+            // A foreground-service rejection must not end an already bound visible conversation.
+            removeForeground()
+            stopSelf()
         }
         return START_NOT_STICKY
     }

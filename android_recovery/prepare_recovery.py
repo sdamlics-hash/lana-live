@@ -133,6 +133,12 @@ s=replace(s,'    override fun onDestroy() {','    override fun onDestroy() {\n  
 s=replace(s,'val name = prefs.getString("voice_name", "").orEmpty()', 'val name = prefs.getString("confirmed_offline_voice", "").orEmpty()')
 s=replace(s,'    override fun onStop() {', '    override fun onStop() {\n        cancelVoicePreview?.invoke()')
 s=replace(s,'    private fun startVoice() {', '    private fun startVoice() {\n        cancelVoicePreview?.invoke()')
+# Start background mode only from the user's Listen action; preserve an explicit opt-out.
+s=replace(s,'getBoolean("experimental_background_voice", false)', 'getBoolean("experimental_background_voice", true)')
+workspace=src/'LanaWorkspace.kt'
+workspace.write_text(replace(replace(workspace.read_text(),
+    'getBoolean("experimental_background_voice", false)', 'getBoolean("experimental_background_voice", true)'),
+    'Голосовой сервис в фоне: уведомление и STOP · экспериментально', 'Разговор в фоне · остановка в уведомлении'))
 s=replace(s,'        super.onResume()', '        super.onResume()\n        refreshVoiceChoices()')
 p.write_text(s)
 change('LanaRuntimeSpeaker.kt',
