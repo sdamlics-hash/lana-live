@@ -4,7 +4,23 @@ import java.util.Locale
 
 /** Assembles final Android recognition segments; partial hypotheses never leave the device. */
 internal class LanaSpeechAssembly {
-    companion object { const val CONTINUATION_MS = 1400L }
+    companion object {
+        const val CONTINUATION_MS = 900L
+        const val INCOMPLETE_CONTINUATION_MS = 1400L
+
+        fun immediate(text: String): Boolean = normalized(text) in setOf(
+            "ты тут", "ты здесь", "ты меня слышишь", "лана ты тут", "лана ты здесь",
+            "лана ты меня слышишь", "ты тут лана", "ты здесь лана", "ты меня слышишь лана"
+        )
+
+        private fun normalized(text: String) = text.lowercase(Locale.ROOT)
+            .replace(Regex("[^а-яё]+"), " ").trim()
+
+        private fun unfinished(text: String): Boolean =
+            normalized(text) == "лана" || normalized(text).substringAfterLast(' ') in setOf(
+                "и", "или", "но", "что", "чтобы", "плюс", "минус", "на", "про"
+            ) || text.trimEnd().lastOrNull() in listOf(',', ':', '+', '-', '×', '÷')
+    }
     private val segments = mutableListOf<String>()
     private var deadline: Long? = null
     var continuing = false
@@ -48,7 +64,7 @@ internal class LanaSpeechAssembly {
         else if (folded != null) segments[segments.lastIndex] = folded
         else segments.add(next)
         continuing = false
-        deadline = now + CONTINUATION_MS
+        deadline = now + if (unfinished(folded ?: next)) INCOMPLETE_CONTINUATION_MS else CONTINUATION_MS
         return true
     }
     fun ready(now: Long) = hasText && !continuing && deadline?.let { now >= it } == true

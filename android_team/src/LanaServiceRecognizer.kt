@@ -155,9 +155,13 @@ internal class LanaServiceRecognizer(private val context: Context) {
                         deliver(client,ticket,appTicket,text); return
                     }
                     finalEndedAt = current.endedAt
+                    val hadText = assembly.hasText
                     if (!assembly.segment(text,SystemClock.elapsedRealtime())) {
                         clearAssembly(); gate.finish(client,ticket); clearAttempt(destroy = false)
                         observer?.stopped("Фраза слишком длинная. Вопрос не отправлен; раздели его на части."); return
+                    }
+                    if (LanaSpeechAssembly.immediate(text) && !hadText) {
+                        deliver(client,ticket,appTicket); return
                     }
                     observer?.diagnostic(appTicket,"Фрагмент получен; слушаю продолжение перед отправкой")
                     if (!gate.accepts(client,ticket)) return

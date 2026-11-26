@@ -9,7 +9,7 @@ class LanaSpeechAssemblyTest {
         a.speechBegan()
         assertFalse(a.ready(5000))
         a.segment("предложи три улучшения",6000)
-        assertTrue(a.ready(7400))
+        assertTrue(a.ready(6900))
         assertEquals("Лана предложи три улучшения",a.take())
         assertFalse(a.hasText)
     }
@@ -18,8 +18,8 @@ class LanaSpeechAssemblyTest {
         a.segment("Стиль уже сохранён или только в текущем разговоре?",100)
         a.speechBegan()
         a.segment("Если сохранить настройку не можешь, скажи прямо.",900)
-        assertFalse(a.ready(2299))
-        assertTrue(a.ready(2300))
+        assertFalse(a.ready(1799))
+        assertTrue(a.ready(1800))
         assertTrue(a.take().endsWith("Если сохранить настройку не можешь, скажи прямо."))
     }
     @Test fun cancellationDropsPendingTextAndDeadline() {
@@ -35,8 +35,8 @@ class LanaSpeechAssemblyTest {
         assertTrue(a.segment("Лана", 0))
         assertTrue(a.segment("Лана, сколько будет", 180))
         assertTrue(a.segment("сколько будет двенадцать плюс восемь", 360))
-        assertFalse(a.ready(1759))
-        assertTrue(a.ready(1760))
+        assertFalse(a.ready(1259))
+        assertTrue(a.ready(1260))
         assertEquals("Лана, сколько будет двенадцать плюс восемь",a.take())
         assertFalse(a.hasText)
     }
@@ -67,5 +67,38 @@ class LanaSpeechAssemblyTest {
     @Test fun oversizeRejectsWithoutTruncatingStoredSegments() {
         val a=LanaSpeechAssembly(); assertTrue(a.segment("я".repeat(4000),0))
         assertFalse(a.segment("ю".repeat(4001),1)); assertEquals(4000,a.take().length)
+    }
+    @Test fun q200RecognitionTimingAndContinuation() {
+        var checked = 0
+        for (index in 0 until 40) {
+            val start = 1_000L + 73L * index
+            val suffix = listOf("", "?", "!", ".", "…")[index % 5]
+            val wake = listOf("Ты тут", "Лана, ты тут", "Ты меня слышишь", "Ты здесь, Лана")[index % 4]
+            assertTrue(LanaSpeechAssembly.immediate(wake + suffix))
+            checked++
+            assertFalse(LanaSpeechAssembly.immediate("$wake и можешь продолжить дальше$suffix"))
+            checked++
+            val normal = LanaSpeechAssembly()
+            normal.segment("Расскажи про Ригу$suffix", start)
+            assertFalse(normal.ready(start + 899))
+            assertTrue(normal.ready(start + 900))
+            checked++
+            val split = LanaSpeechAssembly()
+            split.segment("Двенадцать плюс", start)
+            assertFalse(split.ready(start + 1399))
+            split.speechBegan()
+            assertFalse(split.ready(start + 1500))
+            split.segment("восемь$suffix", start + 1600)
+            assertTrue(split.ready(start + 2500))
+            assertEquals("Двенадцать плюс восемь$suffix", split.take())
+            checked++
+            val cancelled = LanaSpeechAssembly()
+            cancelled.segment("Расскажи про погоду$suffix", start)
+            cancelled.clear()
+            assertFalse(cancelled.ready(start + 2000))
+            assertFalse(cancelled.hasText)
+            checked++
+        }
+        assertEquals(200, checked)
     }
 }
