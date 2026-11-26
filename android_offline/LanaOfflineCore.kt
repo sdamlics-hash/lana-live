@@ -39,6 +39,12 @@ internal class LanaOfflineCore(private val clock: Clock = Clock.systemDefaultZon
     companion object {
         const val NEED_MODEL = "Для свободного разговора нужна локальная нейросеть. Она ещё не подключена. В облако ничего не отправлено."
         const val REPHRASE = "Не смогла ответить по смыслу. Скажи, пожалуйста, чуть иначе."
+        fun boundedHistory(turns: List<LanaLegacyTurn>): List<LanaLegacyTurn> =
+            turns.takeLast(4).chunked(2)
+                .filter { it.size == 2 && it[0].role == "user" && it[1].role == "assistant" &&
+                    it.all { turn -> turn.content.isNotBlank() } }
+                .flatten().map { it.copy(content = it.content.take(200)) }
+
         fun checkedModelReply(question: String, answer: String): String {
             val reply = answer.trim()
             fun normalized(value: String) = value.lowercase(Locale.ROOT).replace('ё', 'е')

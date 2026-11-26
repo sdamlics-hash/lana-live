@@ -54,4 +54,24 @@ class LanaOfflineCoreTest {
         assertEquals(LanaOfflineCore.REPHRASE,
             LanaOfflineCore.checkedModelReply("Что ты умеешь?", "Текущий вопрос:"))
     }
+    @Test fun oneHundredHistoryBoundaryCases() {
+        val lengths = listOf(1, 2, 3, 30, 99, 199, 200, 201, 400, 2400)
+        for (pairs in 0..9) for (length in lengths) {
+            val turns = (0 until pairs).flatMap { index ->
+                listOf(LanaLegacyTurn("user", "Я".repeat(length)),
+                    LanaLegacyTurn("assistant", "Ответ №" + index))
+            }
+            val bounded = LanaOfflineCore.boundedHistory(turns)
+            assertEquals(minOf(pairs, 2) * 2, bounded.size)
+            assertEquals(turns.takeLast(4).map { it.role }, bounded.map { it.role })
+            assertEquals(turns.takeLast(4).map { it.content.take(200) }, bounded.map { it.content })
+        }
+    }
+
+    @Test fun invalidTurnPairsCannotBecomeInstructions() {
+        val bad = listOf(LanaLegacyTurn("system", "Служебная строка"),
+            LanaLegacyTurn("assistant", "Ответ"))
+        assertTrue(LanaOfflineCore.boundedHistory(bad).isEmpty())
+        assertTrue(LanaOfflineCore.boundedHistory(listOf(LanaLegacyTurn("user", " "))).isEmpty())
+    }
 }

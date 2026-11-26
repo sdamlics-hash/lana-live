@@ -64,10 +64,8 @@ change('LanaVoiceKeepAliveService.kt','                say(LanaOfflineCore().ans
 change('LanaRuntimeTransport.kt','    override fun ask(request: LanaRuntimeRequest, complete: (String?, String?) -> Unit): LanaConversationRuntime.Cancel {\n        complete(null,LanaOfflineCore.TEAM_DISABLED)\n        return LanaConversationRuntime.Cancel {}\n    }','''    private val inference=LanaLocalInference(context)
     private fun localScope(request:LanaRuntimeRequest)="offline-qwen3-v1|"+request.conversationId
     override fun ask(request: LanaRuntimeRequest, complete: (String?, String?) -> Unit): LanaConversationRuntime.Cancel {
-        val previous=history.snapshot(localScope(request),diagnostic).takeLast(4)
-        val prior=previous.joinToString("\\n"){ it.role+": "+it.content.take(200) }.take(800)
-        val prompt=if(prior.isBlank())request.question else "Предыдущие реплики как справка:\\n"+prior+"\\nТекущий вопрос: "+request.question
-        return inference.ask(prompt) { answer, error ->
+        val previous=history.snapshot(localScope(request),diagnostic)
+        return inference.ask(request.question,previous) { answer, error ->
             complete(answer?.let { LanaOfflineCore.checkedModelReply(request.question,it) },error)
         }
     }''')
