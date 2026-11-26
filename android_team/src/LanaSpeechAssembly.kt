@@ -10,11 +10,14 @@ internal class LanaSpeechAssembly {
 
         fun immediate(text: String): Boolean = normalized(text) in setOf(
             "ты тут", "ты здесь", "ты меня слышишь", "лана ты тут", "лана ты здесь",
-            "лана ты меня слышишь", "ты тут лана", "ты здесь лана", "ты меня слышишь лана"
+            "лана ты меня слышишь", "ты тут лана", "ты здесь лана", "ты меня слышишь лана",
+            "ладно ты слышишь меня", "ладно ты меня слышишь", "ты слышишь меня",
+            "который час", "сколько времени", "сколько время", "сколько сейчас времени",
+            "лана который час", "лана сколько времени", "приятно сколько время"
         )
 
         private fun normalized(text: String) = text.lowercase(Locale.ROOT)
-            .replace(Regex("[^а-яё]+"), " ").trim()
+            .replace(Regex("[\\p{P}\\s]+"), " ").trim()
 
         private fun unfinished(text: String): Boolean =
             normalized(text) == "лана" || normalized(text).substringAfterLast(' ') in setOf(

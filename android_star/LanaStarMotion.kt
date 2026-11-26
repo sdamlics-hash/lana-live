@@ -18,7 +18,7 @@ internal object LanaStarMotion {
     }
     data class Point(val x: Float,val y: Float)
     data class Frame(val center: Point,val radius: Float,val stars: List<Point>,val orbitX: Float,val orbitY: Float)
-    fun frame(width: Float,height: Float,elapsed: Float,state: State): Frame {
+    fun frame(width: Float,height: Float,elapsed: Float,state: State, expanded: Boolean = false): Frame {
         require(width.isFinite() && height.isFinite() && width > 0 && height > 0 && elapsed.isFinite())
         val size=min(width,height*.82f)
         val angle=if(state.period>0) ((elapsed%state.period)/state.period*2*PI).toFloat() else 0f
@@ -28,12 +28,16 @@ internal object LanaStarMotion {
             State.PREPARE, State.SPEAK -> ((elapsed / .56f).coerceIn(0f, 1f)).let { it * it * (3f - 2f * it) }
             else -> 0f
         }
-        val orbitX = size * (.445f - .061f * gathering)
-        val orbitY = size * (.405f - .047f * gathering)
+        val baseX = if (expanded) min(width * .43f, size * .80f) else size * .438f
+        val orbitX = baseX * (1f - .18f * gathering)
+        val orbitY = size * (.405f - .039f * gathering)
         val stars = (0 until 9).map { i ->
-            val a = angle + (i * 2 * PI / 9).toFloat()
-            val lane = 1f + .035f * (i % 3)
-            Point(center.x + cos(a) * orbitX * lane, center.y + sin(a) * orbitY * lane)
+            val track = i % 3
+            val phase = (i * 2 * PI / 9).toFloat()
+            val a = phase + if (track == 1) -angle else angle
+            val lane = 1f + .024f * track + sin(2f * a + phase) * .018f
+            val wobble = if (track == 2) sin(3f * a + phase) * size * .012f else 0f
+            Point(center.x + cos(a) * orbitX * lane, center.y + sin(a) * orbitY * lane + wobble)
         }
         return Frame(center, radius, stars, orbitX, orbitY)
     }

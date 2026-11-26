@@ -36,8 +36,8 @@ class LanaStarMotionTest {
 
     @Test fun surroundingStarsClearPortraitAndViewEdges() {
         for ((width, height) in listOf(200f to 200f, 700f to 150f, 140f to 260f)) {
-            for (state in S) for (step in 0..100) {
-                val frame = f(width, height, step * .079f, state)
+            for (expanded in listOf(false, true)) for (state in S) for (step in 0..100) {
+                val frame = LanaStarMotion.frame(width, height, step * .079f, state, expanded)
                 val margin = maxOf(.5f, frame.radius * .066f)
                 for (star in frame.stars) {
                     assertTrue(star.x in margin..(width - margin))
@@ -48,5 +48,11 @@ class LanaStarMotionTest {
                 }
             }
         }
+    }
+    @Test fun expandedSceneUsesMoreHorizontalSpace() {
+        val compact = f(900f, 300f, 0f, S[0])
+        val expanded = LanaStarMotion.frame(900f, 300f, 0f, S[0], expanded = true)
+        assertTrue(expanded.orbitX > compact.orbitX * 1.5f)
+        assertEquals(compact.radius, expanded.radius)
     }
 }

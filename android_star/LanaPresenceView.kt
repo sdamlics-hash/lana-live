@@ -17,6 +17,12 @@ internal class LanaPresenceView(context: Context) : View(context) {
     private val portraitMatrix = Matrix()
     private val labelTypeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
     private var lastFrameAt = 0L
+    private var expanded = false
+
+    fun setExpanded(value: Boolean) {
+        expanded = value
+        invalidate()
+    }
     private var state=LanaStarMotion.State.IDLE
     private var started=SystemClock.elapsedRealtime()
     private val animator=ValueAnimator.ofFloat(0f,1f).apply {
@@ -47,17 +53,27 @@ internal class LanaPresenceView(context: Context) : View(context) {
     override fun onDetachedFromWindow(){animator.cancel();super.onDetachedFromWindow()}
     override fun onVisibilityChanged(changedView:View,visibility:Int){super.onVisibilityChanged(changedView,visibility);if(isAttachedToWindow)manageMotion()}
     override fun onWindowVisibilityChanged(visibility:Int){super.onWindowVisibilityChanged(visibility);if(isAttachedToWindow)manageMotion()}
-    private fun star(c:Canvas,x:Float,y:Float,r:Float,color:Int){
+    private fun star(c:Canvas,x:Float,y:Float,r:Float,color:Int,shape:Int){
         val p = starPath
         p.rewind()
+        paint.shader = null; paint.style = Paint.Style.FILL; paint.color = color
+        if (shape == 2) {
+            c.drawCircle(x, y, r * .55f, paint)
+            return
+        }
+        if (shape == 1) {
+            p.moveTo(x,y-r); p.lineTo(x+r*.56f,y); p.lineTo(x,y+r); p.lineTo(x-r*.56f,y); p.close()
+            c.drawPath(p,paint)
+            return
+        }
         p.moveTo(x,y-r);p.lineTo(x+r*.24f,y-r*.24f);p.lineTo(x+r,y);p.lineTo(x+r*.24f,y+r*.24f)
         p.lineTo(x,y+r);p.lineTo(x-r*.24f,y+r*.24f);p.lineTo(x-r,y);p.lineTo(x-r*.24f,y-r*.24f);p.close()
-        paint.shader=null;paint.style=Paint.Style.FILL;paint.color=color;c.drawPath(p,paint)
+        c.drawPath(p,paint)
     }
     override fun onDraw(c:Canvas){
         super.onDraw(c)
         if(width<=0||height<=0)return
-        val f=LanaStarMotion.frame(width.toFloat(),height.toFloat(),if (animator.isStarted) (SystemClock.elapsedRealtime()-started)/1000f else 0f,state)
+        val f=LanaStarMotion.frame(width.toFloat(),height.toFloat(),if (animator.isStarted) (SystemClock.elapsedRealtime()-started)/1000f else 0f,state,expanded)
         val x=f.center.x;val y=f.center.y;val r=f.radius
         val accent=when(state){
             LanaStarMotion.State.LISTEN -> Color.rgb(97,220,155)
@@ -75,7 +91,7 @@ internal class LanaPresenceView(context: Context) : View(context) {
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = maxOf(1f, r * .015f)
         paint.color = accent and 0x00ffffff or 0x77000000
-        c.drawOval(x-f.orbitX,y-f.orbitY,x+f.orbitX,y+f.orbitY,paint)
+        if (!expanded) c.drawOval(x-f.orbitX,y-f.orbitY,x+f.orbitX,y+f.orbitY,paint)
 
         val bitmap = portrait
         val shader = portraitShader
@@ -96,7 +112,7 @@ internal class LanaPresenceView(context: Context) : View(context) {
         }
         f.stars.forEachIndexed { i,p ->
             val color = if (i % 3 == 0) Color.rgb(221, 144, 43) else accent
-            star(c, p.x, p.y, maxOf(.5f, r * (.038f + .014f * (i % 3))), color)
+            star(c, p.x, p.y, maxOf(.5f, r * (.038f + .014f * (i % 3))), color, i % 3)
         }
         paint.style = Paint.Style.FILL
         paint.color = Color.rgb(67,46,92)

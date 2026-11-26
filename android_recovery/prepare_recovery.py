@@ -139,6 +139,7 @@ workspace=src/'LanaWorkspace.kt'
 workspace.write_text(replace(replace(workspace.read_text(),
     'getBoolean("experimental_background_voice", false)', 'getBoolean("experimental_background_voice", true)'),
     'Голосовой сервис в фоне: уведомление и STOP · экспериментально', 'Разговор в фоне · остановка в уведомлении'))
+s=replace(s,'        presence.update(status.text.toString())','        (presence.parent as? android.widget.LinearLayout)?.let { parent ->\n            val toggle = Button(this).apply {\n                text = "Расширить сцену"\n                setOnClickListener {\n                    val expanded = !isSelected\n                    isSelected = expanded\n                    presence.setExpanded(expanded)\n                    presence.layoutParams = presence.layoutParams.apply {\n                        height = ((if (expanded) 325 else 190) * resources.displayMetrics.density).toInt()\n                    }\n                    text = if (expanded) "Свернуть сцену" else "Расширить сцену"\n                }\n            }\n            parent.addView(toggle, parent.indexOfChild(presence) + 1)\n        }\n        presence.update(status.text.toString())')
 s=replace(s,'        super.onResume()', '        super.onResume()\n        refreshVoiceChoices()')
 p.write_text(s)
 change('LanaRuntimeSpeaker.kt',

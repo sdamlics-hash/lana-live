@@ -101,4 +101,11 @@ class LanaSpeechAssemblyTest {
         }
         assertEquals(200, checked)
     }
+    @Test fun quickClockAndConnectionChecksRequireAWholeStandaloneUtterance() {
+        for (text in listOf("Ладно, ты слышишь меня?", "Который час?", "Приятно, сколько время?")) {
+            assertTrue(LanaSpeechAssembly.immediate(text))
+            assertFalse(LanaSpeechAssembly.immediate(text + " и какая дата"))
+            assertFalse(LanaSpeechAssembly.immediate(text + " 123"))
+        }
+    }
 }
