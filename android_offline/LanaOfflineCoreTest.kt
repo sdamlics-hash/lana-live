@@ -18,4 +18,25 @@ class LanaOfflineCoreTest {
     @Test fun offlineStatus() { assertTrue(core.answer("Режим работы").contains("не отправляются")) }
     @Test fun teamDisabled() { assertEquals(LanaOfflineCore.TEAM_DISABLED,LanaOfflineCore.capability("команда","Есть отправка OpenAI")); assertNull(LanaOfflineCore.capability("x",null)) }
     @Test fun repeatedTurns() { repeat(200) { assertTrue(core.answer("Который час").contains("09:38")); assertEquals(LanaOfflineCore.NEED_MODEL,core.answer("Свободный вопрос $it")) } }
+    @Test fun oneHundredDialogueRegressions() {
+        var checked = 0
+        val prefixes = listOf("", "Лана, ", "LANA: ", "ладно ", "Лана, пожалуйста, ")
+        val marks = listOf("", "?", "!", "…")
+        for (prefix in prefixes) for (mark in marks) {
+            assertTrue(core.answer(prefix + "приятно, сколько время" + mark).contains("09:38"))
+            checked++
+            assertEquals("Я на связи.", core.answer(prefix + "ты меня слышишь" + mark))
+            checked++
+            assertTrue(core.answer(prefix + "повторяешь всё за мной да" + mark).startsWith("Поняла"))
+            checked++
+            val question = prefix + "Объясни тему" + mark
+            assertEquals(LanaOfflineCore.REPHRASE, LanaOfflineCore.checkedModelReply(question, "Текущий вопрос: " + question))
+            assertEquals(LanaOfflineCore.REPHRASE, LanaOfflineCore.checkedModelReply(question, question.uppercase(java.util.Locale.ROOT)))
+            checked++
+            assertEquals("Ответ по смыслу.", LanaOfflineCore.checkedModelReply(question, "Ответ по смыслу."))
+            assertEquals(LanaOfflineCore.NEED_MODEL, core.answer(question))
+            checked++
+        }
+        assertEquals(100, checked)
+    }
 }

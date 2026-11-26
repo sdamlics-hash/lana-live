@@ -9,9 +9,12 @@ import java.util.Locale
 internal class LanaOfflineCore(private val clock: Clock = Clock.systemDefaultZone()) {
     fun answer(words: String): String {
         if (words.length > 4000) return "Вопрос слишком длинный. Раздели его на части."
-        val q = words.trim().lowercase(Locale.ROOT).replace(Regex("\\s+"), " ")
-            .trimEnd('.', '!', '?').replace(Regex("^(?:лана|lana)[,: ]+"), "")
-            .replace(Regex("[, ]+(?:лана|lana)$"), "").trim()
+        val q = words.trim().lowercase(Locale.ROOT).replace('ё', 'е')
+            .replace(Regex("[\\p{P}\\s]+"), " ").trim()
+            .replace(Regex("^(?:лана|lana|ладно) "), "")
+            .replace(Regex(" (?:лана|lana)$"), "")
+            .replace(Regex("^(?:(?:приятно|спасибо|скажи пожалуйста|скажи|пожалуйста) )+"), "")
+            .replace(Regex(" пожалуйста$"), "")
         if (q.isBlank()) return "Скажи или напиши вопрос."
         val now = ZonedDateTime.now(clock)
         return when (q) {
@@ -19,14 +22,27 @@ internal class LanaOfflineCore(private val clock: Clock = Clock.systemDefaultZon
                 "По часам планшета сейчас " + now.format(DateTimeFormatter.ofPattern("HH:mm")) + "."
             "какая сегодня дата", "какое сегодня число", "какой сегодня день" ->
                 "Сегодня " + now.format(DateTimeFormatter.ofPattern("EEEE, d MMMM uuuu",Locale.forLanguageTag("ru"))) + "."
-            "ты тут", "ты здесь", "привет", "доброе утро", "добрый день", "добрый вечер", "здравствуй", "здравствуйте" -> "Я на связи."
-            "как дела", "как твои дела", "как твои дела сегодня" -> "Я на связи. Работаю в локальном режиме."
+            "ты тут", "ты здесь", "ты меня слышишь", "ты слышишь меня", "где ты пропадаешь", "привет", "доброе утро", "добрый день", "добрый вечер", "здравствуй", "здравствуйте" -> "Я на связи."
+            "как дела", "как твои дела", "как твои дела сегодня", "как твое настроение" -> "Я на связи. Работаю в локальном режиме."
+            "повторяешь все за мной", "повторяешь все за мной да", "зачем ты повторяешь за мной" ->
+                "Поняла. Ты ждёшь ответа по смыслу. Задай вопрос ещё раз."
+            "совсем некорректно говоришь", "ты говоришь некорректно", "ты меня неправильно поняла" ->
+                "Я неверно поняла фразу. Скажи, что именно нужно уточнить."
             "ты работаешь без сервера", "режим работы", "ты в интернете" -> "Локальный режим. Запросы в облако не отправляются."
             else -> NEED_MODEL
         }
     }
     companion object {
         const val NEED_MODEL = "Для свободного разговора нужна локальная нейросеть. Она ещё не подключена. В облако ничего не отправлено."
+        const val REPHRASE = "Не смогла ответить по смыслу. Скажи, пожалуйста, чуть иначе."
+        fun checkedModelReply(question: String, answer: String): String {
+            val reply = answer.trim()
+            fun normalized(value: String) = value.lowercase(Locale.ROOT).replace('ё', 'е')
+                .replace(Regex("[\\p{P}\\s]+"), " ").trim()
+            val plain = normalized(reply)
+            return if (plain == normalized(question) || plain.startsWith("текущий вопрос ") ||
+                plain.startsWith("предыдущие реплики как справка")) REPHRASE else reply
+        }
         const val TEAM_DISABLED = "Облачные помощники отключены в локальном режиме. Задание не отправлено."
         fun capability(text: String, original: String?): String? {
             if (original == null) return null

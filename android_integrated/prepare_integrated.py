@@ -67,13 +67,15 @@ change('LanaRuntimeTransport.kt','    override fun ask(request: LanaRuntimeReque
         val previous=history.snapshot(localScope(request),diagnostic).takeLast(4)
         val prior=previous.joinToString("\\n"){ it.role+": "+it.content.take(200) }.take(800)
         val prompt=if(prior.isBlank())request.question else "Предыдущие реплики как справка:\\n"+prior+"\\nТекущий вопрос: "+request.question
-        return inference.ask(prompt,complete)
+        return inference.ask(prompt) { answer, error ->
+            complete(answer?.let { LanaOfflineCore.checkedModelReply(request.question,it) },error)
+        }
     }''')
 change('LanaRuntimeTransport.kt','''        if (!request.legacy) return LanaDialogueRecall.reply(false, emptyList())
         val prior = history.snapshot(scope(request), diagnostic)
         return LanaDialogueRecall.reply(true, prior, history.storageWarning != null)''','''        val prior=history.snapshot(localScope(request),diagnostic)
         return LanaDialogueRecall.reply(true,prior,history.storageWarning!=null)''')
-change('LanaRuntimeTransport.kt','!request.legacy || history.commit(scope(request),request.question,answer)','history.commit(localScope(request),request.question,answer)')
+change('LanaRuntimeTransport.kt','!request.legacy || history.commit(scope(request),request.question,answer)','answer == LanaOfflineCore.REPHRASE || history.commit(localScope(request),request.question,answer)')
 change('LanaRuntimeTransport.kt','fun close() { worker.shutdownNow(); main.removeCallbacksAndMessages(null) }','fun close() { inference.close(); worker.shutdownNow(); main.removeCallbacksAndMessages(null) }')
 change('LanaConversationRuntime.kt','Сервер вернул пустой ответ','Локальная модель вернула пустой ответ')
 print("Local model import, foreground/background dialogue and star integrated; no publication.")

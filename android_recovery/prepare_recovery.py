@@ -162,5 +162,4 @@ change('LanaMemoryTransfer.kt','    fun mount(panel: LinearLayout) {','''    pri
         offlineSetup.mount(panel)''')
 change('LanaRecognitionRecovery.kt','Русское распознавание недоступно. Проверь языковой пакет Android или используй текст.','Русское распознавание недоступно. Настройки LANA → Проверить русский офлайн-микрофон. Пока доступен текст.')
 # Bound initial model resources correctly if initialize throws.
-p=src/'LanaLocalInference.kt';s=p.read_text();s=replace(s,'opened.initialize();engine=opened','engine=opened;opened.initialize()');p.write_text(s)
 print('Recovery setup, voice approval, update picker and initialization cleanup integrated.')

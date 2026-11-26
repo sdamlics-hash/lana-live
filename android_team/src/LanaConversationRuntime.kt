@@ -22,8 +22,10 @@ internal class LanaConversationRuntime(
     interface Transport { fun ask(request: LanaRuntimeRequest, complete: (String?, String?) -> Unit): Cancel }
     interface Speaker { fun speak(text: String, voice: LanaRuntimeVoice, started: () -> Unit, complete: (String?) -> Unit): Cancel }
     enum class Phase { IDLE, THINKING, PREPARING_VOICE, SPEAKING, READY, ERROR, STOPPED }
-    data class Snapshot(val turn: Long, val clientTicket: Long, val phase: Phase, val answer: String = "", val error: String? = null, val textOnly: Boolean = false, val contextSaved: Boolean = true)
+    data class Snapshot(val turn: Long, val clientTicket: Long, val phase: Phase, val answer: String = "", val error: String? = null, val textOnly: Boolean = false, val contextSaved: Boolean = true, val answerMs: Long? = null, val voiceStartMs: Long? = null)
     private var generation = 0L
+    private var startedAt = 0L
+    private fun elapsedMs() = (System.nanoTime() - startedAt) / 1_000_000L
     private var operation: Cancel? = null
     private var observer: ((Snapshot) -> Unit)? = null
     var snapshot = Snapshot(0,-1,Phase.IDLE)
@@ -36,6 +38,7 @@ internal class LanaConversationRuntime(
         // Invalidate before cancellation, including cancellation implementations with synchronous callbacks.
         runCatching { old?.cancel() }
         val id = generation
+        startedAt = System.nanoTime()
         publish(Snapshot(id,ticket,phase,textOnly=textOnly))
         return id
     }
@@ -65,12 +68,12 @@ internal class LanaConversationRuntime(
     }
     private fun output(id: Long, answer: String, voice: LanaRuntimeVoice, saved: Boolean) {
         if (generation != id) return
-        if (!voice.enabled) { publish(snapshot.copy(phase=Phase.READY,answer=answer,contextSaved=saved)); return }
-        publish(snapshot.copy(phase=Phase.PREPARING_VOICE,answer=answer,contextSaved=saved))
+        if (!voice.enabled) { publish(snapshot.copy(phase=Phase.READY,answer=answer,contextSaved=saved,answerMs=elapsedMs())); return }
+        publish(snapshot.copy(phase=Phase.PREPARING_VOICE,answer=answer,contextSaved=saved,answerMs=elapsedMs()))
         if (generation != id) return
         var returned = false
         val cancel = try { speaker.speak(answer,voice,{
-            if (generation == id && snapshot.phase == Phase.PREPARING_VOICE) publish(snapshot.copy(phase=Phase.SPEAKING))
+            if (generation == id && snapshot.phase == Phase.PREPARING_VOICE) publish(snapshot.copy(phase=Phase.SPEAKING,voiceStartMs=elapsedMs()))
         }) { error ->
             if (generation != id || snapshot.phase !in setOf(Phase.PREPARING_VOICE,Phase.SPEAKING)) return@speak
             returned = true; operation = null

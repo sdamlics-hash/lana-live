@@ -20,6 +20,14 @@ internal class LanaLocalInference(context: Context) {
     // Accessed only on dispatcher.
     private var activeConversation:Conversation?=null
     private var activeId:Long?=null
+    private var warmEngine: Engine? = null
+    private var idleClose: Job? = null
+
+    private fun releaseEngine() {
+        val opened = warmEngine
+        warmEngine = null
+        runCatching { opened?.close() }
+    }
     private val model get()=File(File(app.filesDir,"lana-local-model"),LanaModelImport.NAME)
     fun ask(text:String, complete:(String?,String?)->Unit):LanaConversationRuntime.Cancel {
         check(Looper.myLooper()==Looper.getMainLooper())
@@ -36,16 +44,22 @@ internal class LanaLocalInference(context: Context) {
         scope.launch {
             var result:String?=null
             var failed=false
-            var engine:Engine?=null
+            idleClose?.cancel()
+            idleClose = null
             var conversation:Conversation?=null
             try {
                 if(gate.accepts(id)) {
-                    val cache=File(app.cacheDir,"lana-local-inference").apply { mkdirs() }
-                    val opened=Engine(EngineConfig(modelPath=model.absolutePath,backend=Backend.CPU(),cacheDir=cache.absolutePath))
-                    opened.initialize();engine=opened
+                    val opened = warmEngine ?: run {
+                        val cache = File(app.cacheDir,"lana-local-inference").apply { mkdirs() }
+                        val fresh = Engine(EngineConfig(modelPath=model.absolutePath,backend=Backend.CPU(),cacheDir=cache.absolutePath))
+                        try { fresh.initialize() }
+                        catch (error: Throwable) { runCatching { fresh.close() }; throw error }
+                        warmEngine = fresh
+                        fresh
+                    }
                     if(gate.accepts(id)) {
                         val c=opened.createConversation(ConversationConfig(systemInstruction=Contents.of(
-                            "Ты LANA, локальный помощник. Отвечай кратко на русском. Не выдумывай доступ к интернету или выполненные действия."
+                            "Ты LANA, локальный помощник. Отвечай кратко на русском. Отвечай на последний вопрос по смыслу. Не повторяй вопрос, заголовки и предыдущие реплики. Не выдумывай доступ к интернету или выполненные действия."
                         )))
                         conversation=c;activeConversation=c;activeId=id
                         val reply=StringBuilder()
@@ -69,7 +83,11 @@ internal class LanaLocalInference(context: Context) {
             finally {
                 activeConversation=null;activeId=null
                 runCatching { conversation?.close() }
-                runCatching { engine?.close() }
+                if (failed || !gate.accepts(id)) releaseEngine()
+                else idleClose = scope.launch {
+                    delay(60_000L)
+                    releaseEngine()
+                }
                 main.post {
                     val valid=gate.finish(id)
                     if(closed) shutdown()
@@ -88,7 +106,14 @@ internal class LanaLocalInference(context: Context) {
             }
         }
     }
-    private fun shutdown(){scope.cancel();dispatcher.close()}
+    private fun shutdown() {
+        scope.launch {
+            idleClose?.cancel()
+            releaseEngine()
+            scope.cancel()
+            dispatcher.close()
+        }
+    }
     fun close(){
         if(closed)return
         closed=true

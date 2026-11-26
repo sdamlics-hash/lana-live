@@ -50,9 +50,14 @@ class LanaVoiceKeepAliveService : Service() {
     private var historyPreferences = "LanaRuntimeHistory"
     private var savedTurn = -1L
     private var visibleHistorySaved = true
+    private var timedTurn = -1L
     private fun dialogueBusy() = conversation.snapshot.phase in setOf(LanaConversationRuntime.Phase.THINKING,LanaConversationRuntime.Phase.PREPARING_VOICE,LanaConversationRuntime.Phase.SPEAKING)
     private fun busy() = backgroundTeam?.running == true || dialogueBusy()
     private fun relay(snapshot: LanaConversationRuntime.Snapshot) {
+        if (snapshot.phase == LanaConversationRuntime.Phase.SPEAKING && timedTurn != snapshot.turn) {
+            timedTurn = snapshot.turn
+            event("dialogue_answer_ms=${snapshot.answerMs}; tts_start_ms=${snapshot.voiceStartMs}")
+        }
         if (snapshot.answer.isNotBlank() && savedTurn != snapshot.turn) {
             savedTurn = snapshot.turn
             visibleHistorySaved = runCatching {

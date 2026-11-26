@@ -65,7 +65,10 @@ def install(out: Path, root: Path):
         when (snapshot.phase) {
             LanaConversationRuntime.Phase.THINKING -> { speaking = true; status.text = "Думаю…" }
             LanaConversationRuntime.Phase.PREPARING_VOICE -> { speaking = true; status.text = "Готовлю голос…" }
-            LanaConversationRuntime.Phase.SPEAKING -> { speaking = true; status.text = "Отвечаю" }
+            LanaConversationRuntime.Phase.SPEAKING -> {
+                speaking = true; status.text = "Отвечаю"
+                snapshot.voiceStartMs?.let { voiceDiagnostic("Ответ готов: ${snapshot.answerMs} мс; запуск голоса: $it мс от начала обработки") }
+            }
             LanaConversationRuntime.Phase.READY -> {
                 speaking = false; chatRequestStartedAt = 0L
                 if (snapshot.textOnly) { typedTextOnly = false; voiceEnabled = false; status.text = "Ответ текстом получен" }
