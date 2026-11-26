@@ -24,10 +24,14 @@ internal class LanaOfflineCore(private val clock: Clock = Clock.systemDefaultZon
                 "Сегодня " + now.format(DateTimeFormatter.ofPattern("EEEE, d MMMM uuuu",Locale.forLanguageTag("ru"))) + "."
             "ты тут", "ты здесь", "ты меня слышишь", "ты слышишь меня", "где ты пропадаешь", "привет", "доброе утро", "добрый день", "добрый вечер", "здравствуй", "здравствуйте" -> "Я на связи."
             "как дела", "как твои дела", "как твои дела сегодня", "как твое настроение" -> "Я на связи. Работаю в локальном режиме."
-            "повторяешь все за мной", "повторяешь все за мной да", "зачем ты повторяешь за мной" ->
+            "повторяешь все за мной", "повторяешь все за мной да", "зачем ты повторяешь за мной",
+            "ты повторяешь за мной", "ты повторяешь мои вопросы" ->
                 "Поняла. Ты ждёшь ответа по смыслу. Задай вопрос ещё раз."
             "совсем некорректно говоришь", "ты говоришь некорректно", "ты меня неправильно поняла" ->
                 "Я неверно поняла фразу. Скажи, что именно нужно уточнить."
+            "что ты на планшете еще можешь посмотреть", "что ты можешь посмотреть на планшете",
+            "что ты видишь на планшете", "что ты умеешь на планшете" ->
+                "Могу сказать дату и время, прочитать задачи и заметки из Ланы. Экран других приложений сейчас мне недоступен."
             "ты работаешь без сервера", "режим работы", "ты в интернете" -> "Локальный режим. Запросы в облако не отправляются."
             else -> NEED_MODEL
         }
@@ -40,7 +44,12 @@ internal class LanaOfflineCore(private val clock: Clock = Clock.systemDefaultZon
             fun normalized(value: String) = value.lowercase(Locale.ROOT).replace('ё', 'е')
                 .replace(Regex("[\\p{P}\\s]+"), " ").trim()
             val plain = normalized(reply)
-            return if (plain == normalized(question) || plain.startsWith("текущий вопрос ") ||
+            val prompt = normalized(question).removePrefix("лана ").removePrefix("пожалуйста ")
+            val tail = prompt.substringAfter(' ', "")
+            val droppedQuestionWord = prompt.substringBefore(' ') in setOf("что", "как", "где", "почему", "зачем", "когда")
+            val strippedEcho = droppedQuestionWord && tail.count { it == ' ' } >= 3 && plain == tail
+            return if (plain == prompt || plain == normalized(question) || strippedEcho ||
+                plain == "текущий вопрос" || plain.startsWith("текущий вопрос ") ||
                 plain.startsWith("предыдущие реплики как справка")) REPHRASE else reply
         }
         const val TEAM_DISABLED = "Облачные помощники отключены в локальном режиме. Задание не отправлено."

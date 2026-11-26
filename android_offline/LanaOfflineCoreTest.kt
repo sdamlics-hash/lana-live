@@ -39,4 +39,19 @@ class LanaOfflineCoreTest {
         }
         assertEquals(100, checked)
     }
+    @Test fun handlesTabletQuestionAndFeedbackFromSamsung() {
+        val q = "Что ты на планшете ещё можешь посмотреть?"
+        assertEquals(LanaOfflineCore.REPHRASE,
+            LanaOfflineCore.checkedModelReply(q, "Ты на планшете ещё можешь посмотреть."))
+        assertTrue(core.answer(q).contains("Экран других приложений сейчас мне недоступен"))
+        assertTrue(core.answer("Ты повторяешь мои вопросы").startsWith("Поняла"))
+        assertTrue(core.answer("Ты повторяешь за мной").startsWith("Поняла"))
+    }
+    @Test fun keepsShortMeaningfulAnswersAndRejectsBarePromptHeader() {
+        assertEquals("Дома.", LanaOfflineCore.checkedModelReply("Где дома?", "Дома."))
+        assertEquals("В настройках Ланы.",
+            LanaOfflineCore.checkedModelReply("Где мне найти это на планшете?", "В настройках Ланы."))
+        assertEquals(LanaOfflineCore.REPHRASE,
+            LanaOfflineCore.checkedModelReply("Что ты умеешь?", "Текущий вопрос:"))
+    }
 }

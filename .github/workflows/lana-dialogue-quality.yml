@@ -1,0 +1,27 @@
+name: LANA dialogue quality checks
+on:
+  push:
+    branches: ['work/lana-dialogue-quality']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Generate and test Android
+        run: |
+          python android_recovery/prepare_recovery.py /tmp/lana-quality
+          sed -i 's@mavenCentral()@maven { url = uri("https://maven-central.storage-download.googleapis.com/maven2") }; mavenCentral()@g' /tmp/lana-quality/settings.gradle.kts
+          gradle -p /tmp/lana-quality --no-daemon testDebugUnitTest
