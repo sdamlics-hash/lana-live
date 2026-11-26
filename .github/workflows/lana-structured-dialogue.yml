@@ -1,13 +1,13 @@
-name: LANA turn timing and real-model checks
+name: LANA Qwen instruction comparison
 on:
   push:
-    branches: ['work/lana-turn-timing']
+    branches: ['work/lana-model-evaluation']
 permissions:
   contents: read
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 38
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -48,4 +48,4 @@ jobs:
             adb shell run-as ai.dreibus.lanalive.voicepreview mkdir -p files/lana-local-model
             adb shell -T 'run-as ai.dreibus.lanalive.voicepreview sh -c "cat > files/lana-local-model/Qwen3-0.6B.litertlm"' < /tmp/Qwen3-0.6B.litertlm
             adb shell am instrument -w ai.dreibus.lanalive.voicepreview.test/ai.dreibus.lanalive.LanaModelDialogueInstrumentation | tee /tmp/lana-instrumentation.txt
-            grep -q LANA_REAL_MODEL_OK /tmp/lana-instrumentation.txt
+            grep -q LANA_MODEL_EVALUATION_COMPLETE /tmp/lana-instrumentation.txt

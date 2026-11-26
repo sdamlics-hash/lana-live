@@ -29,7 +29,10 @@ internal class LanaLocalInference(context: Context) {
         runCatching { opened?.close() }
     }
     private val model get()=File(File(app.filesDir,"lana-local-model"),LanaModelImport.NAME)
-    fun ask(text:String, previous: List<LanaLegacyTurn>, complete:(String?,String?)->Unit):LanaConversationRuntime.Cancel {
+    private companion object {
+        const val DEFAULT_INSTRUCTION = "Ты LANA, локальный помощник. Отвечай кратко на русском. Отвечай на последний вопрос по смыслу. Не повторяй вопрос, заголовки и предыдущие реплики. Не выдумывай доступ к интернету или выполненные действия."
+    }
+    fun ask(text:String, previous: List<LanaLegacyTurn>, instruction: String = DEFAULT_INSTRUCTION, complete:(String?,String?)->Unit):LanaConversationRuntime.Cancel {
         check(Looper.myLooper()==Looper.getMainLooper())
         if(!model.isFile) {
             complete(null,"Сначала импортируй локальную модель в Настройках LANA.")
@@ -62,7 +65,7 @@ internal class LanaLocalInference(context: Context) {
                             if (it.role == "user") Message.user(it.content) else Message.model(it.content)
                         }
                         val c=opened.createConversation(ConversationConfig(systemInstruction=Contents.of(
-                            "Ты LANA, локальный помощник. Отвечай кратко на русском. Отвечай на последний вопрос по смыслу. Не повторяй вопрос, заголовки и предыдущие реплики. Не выдумывай доступ к интернету или выполненные действия."
+                            instruction
                         ), initialMessages = history))
                         conversation=c;activeConversation=c;activeId=id
                         val reply=StringBuilder()
