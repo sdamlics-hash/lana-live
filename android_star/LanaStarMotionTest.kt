@@ -25,4 +25,28 @@ class LanaStarMotionTest {
     @Test fun portraitBounds(){for(s in S) for(i in 0..100){val a=f(220f,900f,i*.17f,s);assertTrue(a.stars.all{it.x in 0f..220f&&it.y in 0f..900f})}}
     @Test fun splitScreenBounds(){for(s in S) for(i in 0..100){val a=f(700f,150f,i*.17f,s);assertTrue(a.stars.all{it.x in 0f..700f&&it.y in 0f..150f});assertTrue(a.center.y-a.radius>=0f&&a.center.y+a.radius<=150f)}}
     @Test fun positiveFiniteRadius(){for(s in S)for(i in 0..200){val a=f(100f,100f,i*.1f,s);assertTrue(a.radius.isFinite()&&a.radius>0f&&a.orbitX>0&&a.orbitY>0)}}
+    @Test fun starsGatherAroundPortraitWhileSpeaking() {
+        val start = f(200f, 200f, 0f, S[4])
+        val gathered = f(200f, 200f, .56f, S[4])
+        assertTrue(gathered.orbitX < start.orbitX)
+        assertTrue(gathered.orbitY < start.orbitY)
+        assertEquals(start.radius, gathered.radius)
+        assertTrue(gathered.orbitY > gathered.radius)
+    }
+
+    @Test fun surroundingStarsClearPortraitAndViewEdges() {
+        for ((width, height) in listOf(200f to 200f, 700f to 150f, 140f to 260f)) {
+            for (state in S) for (step in 0..100) {
+                val frame = f(width, height, step * .079f, state)
+                val margin = maxOf(.5f, frame.radius * .066f)
+                for (star in frame.stars) {
+                    assertTrue(star.x in margin..(width - margin))
+                    assertTrue(star.y in margin..(height - margin))
+                    val dx = star.x - frame.center.x
+                    val dy = star.y - frame.center.y
+                    assertTrue(dx * dx + dy * dy > (frame.radius + margin) * (frame.radius + margin))
+                }
+            }
+        }
+    }
 }

@@ -1,7 +1,7 @@
-name: LANA 1061 Button Update Candidate
+name: LANA 1063 Button Update Candidate
 on:
   push:
-    branches: ['work/lana-latency-1061']
+    branches: ['work/lana-portrait-1063']
 permissions:
   contents: read
   actions: read
@@ -29,10 +29,10 @@ jobs:
       - name: Generate offline and rollback candidates
         run: |
           python android_recovery/prepare_recovery.py /tmp/lana-install
-          git worktree add --detach /tmp/lana-baseline ff0228c78dc03d2434ca2b9729f190f3c5e63b96
+          git worktree add --detach /tmp/lana-baseline 9614973692329ce60b3dc13c0bf682e014abd468
           (cd /tmp/lana-baseline && python android_recovery/prepare_recovery.py /tmp/lana-rollback)
-          python android_delivery/prepare_identity.py /tmp/lana-install 1061
-          python android_delivery/prepare_identity.py /tmp/lana-rollback 1062
+          python android_delivery/prepare_identity.py /tmp/lana-install 1063
+          python android_delivery/prepare_identity.py /tmp/lana-rollback 1064
       - name: Resolve Maven Central dependencies through Google mirror
         run: |
           python - <<'PYMAVEN'
@@ -115,7 +115,7 @@ jobs:
           echo '7550f583a06f10cd045a9bd6e321b55c8fe47ecd0b3f38de8039a2669b6ae720  /tmp/lana-1048.apk' | sha256sum -c -
           "$TOOLS/apksigner" verify --print-certs /tmp/lana-1048.apk > /tmp/lana-old-cert.txt
           mkdir -p /tmp/lana-delivery
-          for item in 'install:1061:LANA-OFFLINE-1061-TEST.apk' 'rollback:1062:LANA-ROLLBACK-1062.apk'; do
+          for item in 'install:1063:LANA-OFFLINE-1063-TEST.apk' 'rollback:1064:LANA-ROLLBACK-1064.apk'; do
             IFS=: read -r dir version filename <<< "$item"
             apk="/tmp/lana-$dir/app/build/outputs/apk/debug/app-debug.apk"
             "$TOOLS/aapt" dump badging "$apk" | grep -F "package: name='ai.dreibus.lanalive.stablevoice' versionCode='$version'"
@@ -132,7 +132,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: LANA-1061-OFFLINE-TEST-AND-ROLLBACK
+          name: LANA-1063-OFFLINE-TEST-AND-ROLLBACK
           path: /tmp/lana-delivery/
           if-no-files-found: error
           retention-days: 14
@@ -145,7 +145,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: LANA-1061-OFFLINE-TEST-AND-ROLLBACK
+          name: LANA-1063-OFFLINE-TEST-AND-ROLLBACK
           path: delivery
       - name: Publish signed LANA to its dedicated offline update channel
         env:
@@ -155,10 +155,10 @@ jobs:
         run: |
           set -euo pipefail
           sha256sum -c SHA256SUMS.txt
-          cp LANA-OFFLINE-1061-TEST.apk LANA-OFFLINE.apk
-          tag=lana-offline-1061
+          cp LANA-OFFLINE-1063-TEST.apk LANA-OFFLINE.apk
+          tag=lana-offline-1063
           if ! gh release view "$tag" >/dev/null 2>&1; then
-            gh release create "$tag" LANA-OFFLINE.apk --target "$GITHUB_SHA" --latest=false --title "LANA 1061" --notes "Сокращено ожидание после окончательного распознавания фразы. Скорость на Samsung проверяется отдельно."
+            gh release create "$tag" LANA-OFFLINE.apk --target "$GITHUB_SHA" --latest=false --title "LANA 1063" --notes "Портрет Ланы и звёзды, которые сближаются во время ответа."
           fi
           gh release download "$tag" --pattern LANA-OFFLINE.apk --output downloaded.apk
           cmp downloaded.apk LANA-OFFLINE.apk
@@ -166,8 +166,8 @@ jobs:
           import hashlib, json
           from pathlib import Path
           apk = Path("LANA-OFFLINE.apk")
-          payload = {"schema": 1, "package": "ai.dreibus.lanalive.stablevoice", "versionCode": 1061,
-                     "apkUrl": "https://github.com/sdamlics-hash/lana-live/releases/download/lana-offline-1061/LANA-OFFLINE.apk",
+          payload = {"schema": 1, "package": "ai.dreibus.lanalive.stablevoice", "versionCode": 1063,
+                     "apkUrl": "https://github.com/sdamlics-hash/lana-live/releases/download/lana-offline-1063/LANA-OFFLINE.apk",
                      "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(), "size": apk.stat().st_size}
           Path("lana-update.json").write_text(json.dumps(payload) + "\n")
           PYJSON
@@ -191,4 +191,4 @@ jobs:
             args=()
           fi
           gh api --method PUT "repos/$GH_REPO/contents/lana-update.json" -f branch="$channel" \
-            -f message="Publish LANA 1061 update metadata" -f content="$(base64 -w0 lana-update.json)" "${args[@]}"
+            -f message="Publish LANA 1063 update metadata" -f content="$(base64 -w0 lana-update.json)" "${args[@]}"
