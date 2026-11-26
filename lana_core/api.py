@@ -9,12 +9,13 @@ from urllib.parse import urlsplit
 from .engine import TaskQueue, UnsafeTaskError
 from .chat import ChatService, ChatError
 from .usage import UsageLimitError
+from .team import TeamBusy
 
 MAX_BODY_BYTES = 1024 * 1024
 TASK_ID_RE = re.compile(r"^/v1/tasks/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$")
 KEY_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
 
-def make_handler(queue, token, chat_service=None):
+def make_handler(queue, token, chat_service=None, *, team_service=None):
     if not isinstance(token, str) or len(token) < 32:
         raise ValueError("LANA_API_TOKEN must be a random secret of at least 32 characters")
 
@@ -85,7 +86,7 @@ def make_handler(queue, token, chat_service=None):
             if not self._require_auth():
                 return
             path = self._path()
-            if path not in ("/v1/tasks", "/v1/chat", "/v1/lana/chat"):
+            if path not in ("/v1/tasks", "/v1/chat", "/v1/lana/chat", "/v1/team/compare"):
                 self._json(404, {"error": "unknown endpoint"})
                 return
             if self.headers.get("Transfer-Encoding"):
@@ -110,6 +111,23 @@ def make_handler(queue, token, chat_service=None):
                                   parse_constant=lambda _: (_ for _ in ()).throw(ValueError("non-finite JSON")))
             except (UnicodeError, ValueError):
                 self._json(400, {"error": "invalid JSON"})
+                return
+            if path == "/v1/team/compare":
+                if not isinstance(data, dict) or set(data) != {"task", "send_to_providers"}:
+                    self._json(400, {"error": "invalid team schema"})
+                elif data["send_to_providers"] is not True:
+                    self._json(403, {"error": "explicit team consent required"})
+                elif team_service is None:
+                    self._json(503, {"error": "LANA team is not configured"})
+                else:
+                    try:
+                        result = team_service.dispatch(data["task"])
+                    except ValueError:
+                        self._json(400, {"error": "invalid team task"})
+                    except TeamBusy:
+                        self._json(429, {"error": "team is busy"})
+                    else:
+                        self._json(200, result)
                 return
             if path in ("/v1/chat", "/v1/lana/chat"):
                 if (not isinstance(data, dict) or not {"conversation_id", "text"}.issubset(data)
@@ -158,10 +176,10 @@ def make_handler(queue, token, chat_service=None):
 class LoopbackServer(ThreadingHTTPServer):
     daemon_threads = True
 
-def create_server(queue, token, host="127.0.0.1", port=8787, chat_service=None):
+def create_server(queue, token, host="127.0.0.1", port=8787, chat_service=None, *, team_service=None):
     if host != "127.0.0.1":
         raise ValueError("Only IPv4 loopback is allowed; use a reviewed TLS/VPN proxy")
-    return LoopbackServer((host, port), make_handler(queue, token, chat_service))
+    return LoopbackServer((host, port), make_handler(queue, token, chat_service, team_service=team_service))
 
 def main():
     parser = argparse.ArgumentParser(description="LANA offline-only local task API")
