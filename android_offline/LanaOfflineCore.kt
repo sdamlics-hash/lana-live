@@ -39,11 +39,31 @@ internal class LanaOfflineCore(private val clock: Clock = Clock.systemDefaultZon
     companion object {
         const val NEED_MODEL = "Для свободного разговора нужна локальная нейросеть. Она ещё не подключена. В облако ничего не отправлено."
         const val REPHRASE = "Не смогла ответить по смыслу. Скажи, пожалуйста, чуть иначе."
+        // Limits are expressed in UTF-16 code units. Keep the stored string well formed.
+        private fun safePrefix(text: String, max: Int): String {
+            if (text.length <= max) return text
+            val end = if (text[max - 1].isHighSurrogate() && text[max].isLowSurrogate()) max - 1 else max
+            return text.substring(0, end)
+        }
+
+        fun visibleModelReply(raw: String): String? {
+            var remaining = raw.trim()
+            // A complete reasoning block is internal; an incomplete or misplaced block
+            // is ambiguous and must never be spoken or committed to history.
+            while (remaining.startsWith("<think>", ignoreCase = true)) {
+                val close = remaining.indexOf("</think>", startIndex = 7, ignoreCase = true)
+                if (close < 0 || remaining.substring(7, close).contains("<think>", true)) return null
+                remaining = remaining.substring(close + 8).trimStart()
+            }
+            if (remaining.isBlank() || remaining.contains("<think>", true) || remaining.contains("</think>", true)) return null
+            return safePrefix(remaining, 5000).trimEnd().takeIf { it.isNotEmpty() }
+        }
+
         fun boundedHistory(turns: List<LanaLegacyTurn>): List<LanaLegacyTurn> =
             turns.takeLast(4).chunked(2)
                 .filter { it.size == 2 && it[0].role == "user" && it[1].role == "assistant" &&
                     it.all { turn -> turn.content.isNotBlank() } }
-                .flatten().map { it.copy(content = it.content.take(200)) }
+                .flatten().map { it.copy(content = safePrefix(it.content, 200)) }
 
         fun checkedModelReply(question: String, answer: String): String {
             val reply = answer.trim()

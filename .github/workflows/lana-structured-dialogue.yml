@@ -1,7 +1,7 @@
-name: LANA structured dialogue checks
+name: LANA response handling and model checks
 on:
   push:
-    branches: ['work/lana-structured-dialogue']
+    branches: ['work/lana-dialogue-hardening']
 permissions:
   contents: read
 jobs:

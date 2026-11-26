@@ -43,7 +43,7 @@ internal class LanaLocalInference(context: Context) {
         }
         scope.launch {
             var result:String?=null
-            var failed=false
+            var failure: String? = null
             idleClose?.cancel()
             idleClose = null
             var conversation:Conversation?=null
@@ -76,17 +76,20 @@ internal class LanaLocalInference(context: Context) {
                                 } else reply.append(next)
                             }
                         }
-                        val raw=reply.toString().trim()
-                        if(!overflow && !raw.contains("<think>",true) && !raw.contains("</think>",true) && raw.isNotBlank()) {
-                            result=raw.take(5000)
-                        } else failed=true
+                        if (!overflow) result = LanaOfflineCore.visibleModelReply(reply.toString())
+                        if (result == null) failure = if (overflow)
+                            "Модель превысила лимит ответа. Попроси ответить короче."
+                        else
+                            "Локальная модель не дала готового ответа. Попробуй уточнить вопрос."
                     }
                 }
-            } catch (_:Throwable) { failed=true }
+            } catch (_: Throwable) {
+                failure = "Локальная модель не смогла завершить запрос. Проверь файл модели и свободную память."
+            }
             finally {
                 activeConversation=null;activeId=null
                 runCatching { conversation?.close() }
-                if (failed || !gate.accepts(id)) releaseEngine()
+                if (failure != null || !gate.accepts(id)) releaseEngine()
                 else idleClose = scope.launch {
                     delay(60_000L)
                     releaseEngine()
@@ -94,8 +97,7 @@ internal class LanaLocalInference(context: Context) {
                 main.post {
                     val valid=gate.finish(id)
                     if(closed) shutdown()
-                    else if(valid) complete(if(failed)null else result,
-                        if(failed || result.isNullOrBlank()) "Локальная модель не смогла завершить ответ. Проверь файл модели и свободную память." else null)
+                    else if (valid) complete(result, failure)
                 }
             }
         }

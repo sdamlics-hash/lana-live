@@ -74,4 +74,21 @@ class LanaOfflineCoreTest {
         assertTrue(LanaOfflineCore.boundedHistory(bad).isEmpty())
         assertTrue(LanaOfflineCore.boundedHistory(listOf(LanaLegacyTurn("user", " "))).isEmpty())
     }
+    @Test fun sanitizesOnlyCompleteLeadingReasoning() {
+        assertEquals("Рига.", LanaOfflineCore.visibleModelReply("<think>Скрыто</think>\nРига."))
+        assertEquals("17", LanaOfflineCore.visibleModelReply("<THINK></THINK> <think>другое</think>17"))
+        assertNull(LanaOfflineCore.visibleModelReply("<think>Скрыто"))
+        assertNull(LanaOfflineCore.visibleModelReply("<think>внешний<think>внутренний</think>17"))
+        assertNull(LanaOfflineCore.visibleModelReply("Рига.<think>Скрыто</think>"))
+        assertNull(LanaOfflineCore.visibleModelReply("</think>Рига."))
+        assertNull(LanaOfflineCore.visibleModelReply("<think>Скрыто</think> "))
+    }
+
+    @Test fun truncationPreservesSurrogatePairsInModelResponseAndHistory() {
+        val reply = "a".repeat(4999) + "🙂" + "x"
+        assertEquals("a".repeat(4999), LanaOfflineCore.visibleModelReply(reply))
+        val history = listOf(LanaLegacyTurn("user", "a".repeat(199) + "🙂"),
+            LanaLegacyTurn("assistant", "Готово."))
+        assertEquals("a".repeat(199), LanaOfflineCore.boundedHistory(history).first().content)
+    }
 }
