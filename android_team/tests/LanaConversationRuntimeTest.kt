@@ -133,4 +133,30 @@ class LanaConversationRuntimeTest {
         r.ask(request(),voice(),1);assertEquals(0,t.callbacks.size)
         assertEquals(LanaConversationRuntime.Phase.STOPPED,r.snapshot.phase)
     }
+    @Test fun voiceTimingIncludesRecognitionAndRemainsOnTheSameTurn() {
+        val t = Transport(); val s = Speaker(); val r = LanaConversationRuntime(t,s)
+        r.ask(request(),voice(),1,LanaConversationRuntime.speechEndTime(900L))
+        t.callbacks.single()("ответ",null)
+        assertNull(r.snapshot.speechToVoiceMs)
+        s.started!!()
+        assertTrue(r.snapshot.speechToVoiceMs!! >= 899L + r.snapshot.voiceStartMs!!)
+        s.complete!!(null)
+        assertNotNull(r.snapshot.speechToVoiceMs)
+        r.say("Ответ на текст",voice(),2)
+        s.started!!()
+        assertNull(r.snapshot.speechToVoiceMs)
+    }
+
+    @Test fun lateVoiceStartAfterStopCannotReportPreviousTurnTiming() {
+        val s = Speaker(); val r = LanaConversationRuntime(Transport(),s)
+        r.say("первый",voice(),1,LanaConversationRuntime.speechEndTime(900L))
+        val first = s.started!!
+        r.stop()
+        r.say("второй",voice(),2)
+        first()
+        assertEquals(LanaConversationRuntime.Phase.PREPARING_VOICE,r.snapshot.phase)
+        assertNull(r.snapshot.speechToVoiceMs)
+        s.started!!()
+        assertNull(r.snapshot.speechToVoiceMs)
+    }
 }

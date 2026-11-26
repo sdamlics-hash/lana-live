@@ -56,7 +56,7 @@ class LanaVoiceKeepAliveService : Service() {
     private fun relay(snapshot: LanaConversationRuntime.Snapshot) {
         if (snapshot.phase == LanaConversationRuntime.Phase.SPEAKING && timedTurn != snapshot.turn) {
             timedTurn = snapshot.turn
-            event("dialogue_answer_ms=${snapshot.answerMs}; tts_start_ms=${snapshot.voiceStartMs}")
+            event("dialogue_answer_ms=${snapshot.answerMs}; tts_start_ms=${snapshot.voiceStartMs}; speech_to_tts_ms=${snapshot.speechToVoiceMs}")
         }
         if (snapshot.answer.isNotBlank() && savedTurn != snapshot.turn) {
             savedTurn = snapshot.turn
@@ -123,6 +123,7 @@ class LanaVoiceKeepAliveService : Service() {
             override fun stopped(reason: String) { stopLoop("recognizer_stop: " + reason.take(100)); conversation.stop(); removeForeground(); stopSelf() }
             override fun result(ticket: Long, text: String, latencyMs: Long?) {
                 if (!loopActive || !loopGate.accept(ticket)) return
+                val speechEnd = LanaConversationRuntime.speechEndTime(latencyMs)
                 errorFeedback = false
                 val config = loopConfig ?: return
                 val voice = loopVoice ?: return
@@ -131,7 +132,7 @@ class LanaVoiceKeepAliveService : Service() {
                 if (!prefs.edit().putString("voice_history",(lines + ("Вы: " + text)).joinToString("\n")).commit()) {
                     stopLoop(); engine.close("Не удалось сохранить реплику"); removeForeground(); stopSelf(); return
                 }
-                fun say(reply: String) { conversation.say(reply,voice,ticket) }
+                fun say(reply: String) { conversation.say(reply,voice,ticket,speechEnd) }
                 when (LanaVoiceCommands.choose(text,awake)) {
                     LanaVoiceCommands.Action.IGNORE -> { resumeLoop(); return }
                     LanaVoiceCommands.Action.STOP -> { awake = false; say("Хорошо. Позови, когда понадоблюсь."); return }
@@ -243,19 +244,19 @@ class LanaVoiceKeepAliveService : Service() {
             runtimeOwner = owner; runtimeTicket = ticket; runtimeEvents = listener; relay(conversation.snapshot)
         }
         fun conversationBusy() = busy()
-        fun ask(owner: String, request: LanaRuntimeRequest, voice: LanaRuntimeVoice, ticket: Long) {
+        fun ask(owner: String, request: LanaRuntimeRequest, voice: LanaRuntimeVoice, ticket: Long, speechEnd: Long? = null) {
             if (!engine.owns(owner)) return
             historyPreferences = voice.historyPreferences
             feedbackVoice = voice; errorFeedback = false
             engine.cancel(owner)
-            conversation.ask(request,voice,ticket)
+            conversation.ask(request,voice,ticket,speechEnd)
         }
-        fun say(owner: String, text: String, voice: LanaRuntimeVoice, ticket: Long) {
+        fun say(owner: String, text: String, voice: LanaRuntimeVoice, ticket: Long, speechEnd: Long? = null) {
             if (!engine.owns(owner)) return
             historyPreferences = voice.historyPreferences
             feedbackVoice = voice; errorFeedback = false
             engine.cancel(owner)
-            conversation.say(text,voice,ticket)
+            conversation.say(text,voice,ticket,speechEnd)
         }
         fun stopConversation(owner: String) { if (engine.owns(owner)) { stopLoop(); conversation.stop() } }
         fun endBackgroundMode(owner: String) {

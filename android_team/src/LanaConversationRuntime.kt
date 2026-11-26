@@ -22,9 +22,14 @@ internal class LanaConversationRuntime(
     interface Transport { fun ask(request: LanaRuntimeRequest, complete: (String?, String?) -> Unit): Cancel }
     interface Speaker { fun speak(text: String, voice: LanaRuntimeVoice, started: () -> Unit, complete: (String?) -> Unit): Cancel }
     enum class Phase { IDLE, THINKING, PREPARING_VOICE, SPEAKING, READY, ERROR, STOPPED }
-    data class Snapshot(val turn: Long, val clientTicket: Long, val phase: Phase, val answer: String = "", val error: String? = null, val textOnly: Boolean = false, val contextSaved: Boolean = true, val answerMs: Long? = null, val voiceStartMs: Long? = null)
+    data class Snapshot(val turn: Long, val clientTicket: Long, val phase: Phase, val answer: String = "", val error: String? = null, val textOnly: Boolean = false, val contextSaved: Boolean = true, val answerMs: Long? = null, val voiceStartMs: Long? = null, val speechToVoiceMs: Long? = null)
     private var generation = 0L
     private var startedAt = 0L
+    private var speechEndedAt: Long? = null
+    companion object {
+        fun speechEndTime(latencyMs: Long?): Long? =
+            latencyMs?.takeIf { it in 0L..120_000L }?.let { System.nanoTime() - it * 1_000_000L }
+    }
     private fun elapsedMs() = (System.nanoTime() - startedAt) / 1_000_000L
     private var operation: Cancel? = null
     private var observer: ((Snapshot) -> Unit)? = null
@@ -32,18 +37,19 @@ internal class LanaConversationRuntime(
         private set
     fun observe(listener: ((Snapshot) -> Unit)?) { observer = listener; listener?.invoke(snapshot) }
     private fun publish(value: Snapshot) { snapshot = value; observer?.invoke(value) }
-    private fun begin(ticket: Long, phase: Phase, textOnly: Boolean): Long {
+    private fun begin(ticket: Long, phase: Phase, textOnly: Boolean, speechEnd: Long?): Long {
         generation++
         val old = operation; operation = null
         // Invalidate before cancellation, including cancellation implementations with synchronous callbacks.
         runCatching { old?.cancel() }
         val id = generation
         startedAt = System.nanoTime()
+        speechEndedAt = speechEnd
         publish(Snapshot(id,ticket,phase,textOnly=textOnly))
         return id
     }
-    fun ask(request: LanaRuntimeRequest, voice: LanaRuntimeVoice, clientTicket: Long) {
-        val id = begin(clientTicket,Phase.THINKING,!voice.enabled)
+    fun ask(request: LanaRuntimeRequest, voice: LanaRuntimeVoice, clientTicket: Long, speechEnd: Long? = null) {
+        val id = begin(clientTicket,Phase.THINKING,!voice.enabled,speechEnd)
         if (generation != id) return
         var returned = false
         val cancel = try { transport.ask(request) { answer, error ->
@@ -61,9 +67,9 @@ internal class LanaConversationRuntime(
         }
         if (!returned && generation == id) operation = cancel else runCatching { cancel.cancel() }
     }
-    fun say(text: String, voice: LanaRuntimeVoice, clientTicket: Long) {
+    fun say(text: String, voice: LanaRuntimeVoice, clientTicket: Long, speechEnd: Long? = null) {
         require(text.isNotBlank())
-        val id = begin(clientTicket,Phase.PREPARING_VOICE,!voice.enabled)
+        val id = begin(clientTicket,Phase.PREPARING_VOICE,!voice.enabled,speechEnd)
         if (generation == id) output(id,text,voice,true)
     }
     private fun output(id: Long, answer: String, voice: LanaRuntimeVoice, saved: Boolean) {
@@ -73,7 +79,11 @@ internal class LanaConversationRuntime(
         if (generation != id) return
         var returned = false
         val cancel = try { speaker.speak(answer,voice,{
-            if (generation == id && snapshot.phase == Phase.PREPARING_VOICE) publish(snapshot.copy(phase=Phase.SPEAKING,voiceStartMs=elapsedMs()))
+            if (generation == id && snapshot.phase == Phase.PREPARING_VOICE) {
+                val now = System.nanoTime()
+                val total = speechEndedAt?.let { now - it }?.takeIf { it >= 0L }?.div(1_000_000L)
+                publish(snapshot.copy(phase=Phase.SPEAKING, voiceStartMs=(now-startedAt)/1_000_000L, speechToVoiceMs=total))
+            }
         }) { error ->
             if (generation != id || snapshot.phase !in setOf(Phase.PREPARING_VOICE,Phase.SPEAKING)) return@speak
             returned = true; operation = null

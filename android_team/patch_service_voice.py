@@ -23,6 +23,7 @@ def install(out: Path, root: Path):
     private var recognitionBinder: LanaVoiceKeepAliveService.LocalBinder? = null
     private var recognitionBindingRequested = false
     private var recognitionPending = false
+    private var recognitionSpeechEnd: Long? = null
     private val recognitionObserver = object : LanaServiceRecognizer.Observer {
         private fun live(ticket: Long) = voiceEnabled && voiceSession.accepts(ticket) && !isFinishing && !isDestroyed
         override fun ready(ticket: Long) {
@@ -37,7 +38,12 @@ def install(out: Path, root: Path):
         override fun result(ticket: Long, words: String, latencyMs: Long?) {
             if (!live(ticket)) return
             latencyMs?.let { voiceDiagnostic("Конец речи → текст, мс: $it") }
+            recognitionSpeechEnd = LanaConversationRuntime.speechEndTime(latencyMs)
+            try {
 FINAL_BODY
+            } finally {
+                recognitionSpeechEnd = null
+            }
         }
         override fun retryPhrase(ticket: Long, message: String) {
             if (!live(ticket)) return

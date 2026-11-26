@@ -1,7 +1,7 @@
-name: LANA response handling and model checks
+name: LANA turn timing and real-model checks
 on:
   push:
-    branches: ['work/lana-dialogue-hardening']
+    branches: ['work/lana-turn-timing']
 permissions:
   contents: read
 jobs:

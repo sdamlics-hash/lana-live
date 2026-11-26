@@ -67,6 +67,7 @@ def install(out: Path, root: Path):
             LanaConversationRuntime.Phase.PREPARING_VOICE -> { speaking = true; status.text = "Готовлю голос…" }
             LanaConversationRuntime.Phase.SPEAKING -> {
                 speaking = true; status.text = "Отвечаю"
+                snapshot.speechToVoiceMs?.let { voiceDiagnostic("Конец речи → запуск озвучки: $it мс") }
                 snapshot.voiceStartMs?.let { voiceDiagnostic("Ответ готов: ${snapshot.answerMs} мс; запуск голоса: $it мс от начала обработки") }
             }
             LanaConversationRuntime.Phase.READY -> {
@@ -108,7 +109,8 @@ def install(out: Path, root: Path):
     private fun speakFromLana(answer: String) {
         speaking = true; cancelRecognition()
         val voice = runtimeVoice()
-        withConversationRuntime { it.say(recognitionOwner,answer,voice,voiceSession.current()) }
+        val speechEnd = recognitionSpeechEnd
+        withConversationRuntime { it.say(recognitionOwner,answer,voice,voiceSession.current(),speechEnd) }
     }
 
 ''' + s[b:]

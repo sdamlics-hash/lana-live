@@ -35,6 +35,8 @@ class LanaModelDialogueInstrumentation : Instrumentation() {
             verify("Как называется город из предыдущего сообщения? Ответь одним словом.",
                 listOf(LanaLegacyTurn("user", "Мой город — Рига."), LanaLegacyTurn("assistant", "Поняла.")),
                 Regex("риг[ауе]", RegexOption.IGNORE_CASE))
+            verify("Назови столицу Франции одним словом.", emptyList(),
+                Regex("париж", RegexOption.IGNORE_CASE))
             finish(Activity.RESULT_OK, Bundle().apply { putString("stream", "LANA_REAL_MODEL_OK\n") })
         } catch (error: Throwable) {
             finish(Activity.RESULT_CANCELED, Bundle().apply { putString("stream", "LANA_REAL_MODEL_FAILED: ${error.javaClass.simpleName}\n") })

@@ -54,12 +54,13 @@ change('MainActivity.kt','        speakFromLana(LanaOfflineCore().answer(questio
         val request=LanaRuntimeRequest("","",voiceConversationId,question,question,false,emptyList())
         val voice=runtimeVoice()
         speaking=true;cancelRecognition();status.text="Думаю…"
-        withConversationRuntime { it.ask(recognitionOwner,request,voice,voiceSession.current()) }''')
+        val speechEnd = recognitionSpeechEnd
+        withConversationRuntime { it.ask(recognitionOwner,request,voice,voiceSession.current(),speechEnd) }''')
 # The same route after screen detaches.
 change('LanaVoiceKeepAliveService.kt','                say(LanaOfflineCore().answer(text))','''                val local=LanaOfflineCore().answer(text)
                 if(local!=LanaOfflineCore.NEED_MODEL){say(local);return}
                 if(text.length>2400){say("Раздели длинный вопрос на части.");return}
-                conversation.ask(LanaRuntimeRequest("","",config.conversationId,text,text,false,emptyList()),voice,ticket)''')
+                conversation.ask(LanaRuntimeRequest("","",config.conversationId,text,text,false,emptyList()),voice,ticket,speechEnd)''')
 # Model service only, bounded local context. No legacy HTTP request.
 change('LanaRuntimeTransport.kt','    override fun ask(request: LanaRuntimeRequest, complete: (String?, String?) -> Unit): LanaConversationRuntime.Cancel {\n        complete(null,LanaOfflineCore.TEAM_DISABLED)\n        return LanaConversationRuntime.Cancel {}\n    }','''    private val inference=LanaLocalInference(context)
     private fun localScope(request:LanaRuntimeRequest)="offline-qwen3-v1|"+request.conversationId
