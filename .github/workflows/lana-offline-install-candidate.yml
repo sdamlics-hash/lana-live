@@ -1,7 +1,7 @@
-name: LANA 1055 Offline Recovery Candidate
+name: LANA 1057 Button Update Candidate
 on:
   push:
-    branches: ['work/lana-voice-followup']
+    branches: ['work/lana-button-update']
 permissions:
   contents: read
   actions: read
@@ -29,22 +29,24 @@ jobs:
       - name: Generate offline and rollback candidates
         run: |
           python android_recovery/prepare_recovery.py /tmp/lana-install
-          git worktree add --detach /tmp/lana-baseline d50453e8c4fbec634e16848e9c959e3bf2e1b9d0
-          (cd /tmp/lana-baseline && python android_speech/patch_v44.py LANA_V3_3_ANDROID_APP_SOURCE.zip /tmp/lana-rollback)
-          python android_delivery/prepare_identity.py /tmp/lana-install 1055
-          python android_delivery/prepare_identity.py /tmp/lana-rollback 1056
+          git worktree add --detach /tmp/lana-baseline 804f132aa7995cd089eade60555ed6e9e43a7712
+          (cd /tmp/lana-baseline && python android_recovery/prepare_recovery.py /tmp/lana-rollback)
+          python android_delivery/prepare_identity.py /tmp/lana-install 1057
+          python android_delivery/prepare_identity.py /tmp/lana-rollback 1058
       - name: Compile and test offline update
         working-directory: /tmp/lana-install
         run: gradle --no-daemon testDebugUnitTest assembleDebug
       - name: Compile and test rollback
         working-directory: /tmp/lana-rollback
         run: gradle --no-daemon testDebugUnitTest assembleDebug
-      - name: Verify offline manifest before signing
+      - name: Check network permission in candidate and rollback before signing
         run: |
           set -euo pipefail
           TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
           "$TOOLS/aapt" dump permissions /tmp/lana-install/app/build/outputs/apk/debug/app-debug.apk | tee /tmp/lana-offline-permissions.txt
-          if grep -Fq android.permission.INTERNET /tmp/lana-offline-permissions.txt; then exit 1; fi
+          grep -Fq android.permission.INTERNET /tmp/lana-offline-permissions.txt
+          "$TOOLS/aapt" dump permissions /tmp/lana-rollback/app/build/outputs/apk/debug/app-debug.apk > /tmp/lana-rollback-permissions.txt
+          if grep -Fq android.permission.INTERNET /tmp/lana-rollback-permissions.txt; then exit 1; fi
       - name: Restore persistent signing key
         env:
           GH_TOKEN: ${{ github.token }}
@@ -103,7 +105,7 @@ jobs:
           echo '7550f583a06f10cd045a9bd6e321b55c8fe47ecd0b3f38de8039a2669b6ae720  /tmp/lana-1048.apk' | sha256sum -c -
           "$TOOLS/apksigner" verify --print-certs /tmp/lana-1048.apk > /tmp/lana-old-cert.txt
           mkdir -p /tmp/lana-delivery
-          for item in 'install:1055:LANA-OFFLINE-1055-TEST.apk' 'rollback:1056:LANA-ROLLBACK-1056.apk'; do
+          for item in 'install:1057:LANA-OFFLINE-1057-TEST.apk' 'rollback:1058:LANA-ROLLBACK-1058.apk'; do
             IFS=: read -r dir version filename <<< "$item"
             apk="/tmp/lana-$dir/app/build/outputs/apk/debug/app-debug.apk"
             "$TOOLS/aapt" dump badging "$apk" | grep -F "package: name='ai.dreibus.lanalive.stablevoice' versionCode='$version'"
@@ -120,7 +122,63 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: LANA-1055-OFFLINE-TEST-AND-ROLLBACK
+          name: LANA-1057-OFFLINE-TEST-AND-ROLLBACK
           path: /tmp/lana-delivery/
           if-no-files-found: error
           retention-days: 14
+  publish-update-channel:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: LANA-1057-OFFLINE-TEST-AND-ROLLBACK
+          path: delivery
+      - name: Publish signed LANA to its dedicated offline update channel
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        working-directory: delivery
+        run: |
+          set -euo pipefail
+          sha256sum -c SHA256SUMS.txt
+          cp LANA-OFFLINE-1057-TEST.apk LANA-OFFLINE.apk
+          tag=lana-offline-1057
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" LANA-OFFLINE.apk --target "$GITHUB_SHA" --latest=false --title "LANA 1057" --notes "Кандидат с обновлением по кнопке. Голос проверяется на Samsung."
+          fi
+          gh release download "$tag" --pattern LANA-OFFLINE.apk --output downloaded.apk
+          cmp downloaded.apk LANA-OFFLINE.apk
+          python - <<'PYJSON'
+          import hashlib, json
+          from pathlib import Path
+          apk = Path("LANA-OFFLINE.apk")
+          payload = {"schema": 1, "package": "ai.dreibus.lanalive.stablevoice", "versionCode": 1057,
+                     "apkUrl": "https://github.com/sdamlics-hash/lana-live/releases/download/lana-offline-1057/LANA-OFFLINE.apk",
+                     "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(), "size": apk.stat().st_size}
+          Path("lana-update.json").write_text(json.dumps(payload) + "\n")
+          PYJSON
+          channel=lana-offline-channel
+          if ! gh api "repos/$GH_REPO/git/ref/heads/$channel" >/dev/null 2>&1; then
+            gh api "repos/$GH_REPO/git/refs" -f ref="refs/heads/$channel" -f sha="$GITHUB_SHA"
+          fi
+          if gh api "repos/$GH_REPO/contents/lana-update.json?ref=$channel" > previous.json 2>/dev/null; then
+            python - <<'CHECK'
+          import base64, json
+          from pathlib import Path
+          previous = json.loads(base64.b64decode(json.loads(Path("previous.json").read_text())["content"]))
+          current = json.loads(Path("lana-update.json").read_text())
+          assert current["versionCode"] >= previous["versionCode"], "Refusing to downgrade the update channel"
+          if current["versionCode"] == previous["versionCode"]:
+              assert current == previous, "Refusing to replace an existing version with different bytes"
+          CHECK
+            previous_sha="$(jq -r .sha previous.json)"
+            args=(-f "sha=$previous_sha")
+          else
+            args=()
+          fi
+          gh api --method PUT "repos/$GH_REPO/contents/lana-update.json" -f branch="$channel" \
+            -f message="Publish LANA 1057 update metadata" -f content="$(base64 -w0 lana-update.json)" "${args[@]}"

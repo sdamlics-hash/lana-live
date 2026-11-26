@@ -11,8 +11,12 @@ import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider
 import java.io.File
+import java.io.InputStream
+import java.net.URL
+import java.security.MessageDigest
+import javax.net.ssl.HttpsURLConnection
 
-/** Local file update, with explicit browser access for obtaining files; never contacts a server itself. */
+/** User-initiated update and a manual recovery path share package verification. */
 internal class LanaUpdater(private val activity:MainActivity){
     private val dir=File(activity.cacheDir,"lana-updates")
     private val apk=File(dir,"offline-update.apk")
@@ -33,18 +37,17 @@ internal class LanaUpdater(private val activity:MainActivity){
             setTextColor(android.graphics.Color.WHITE)
             backgroundTintList=android.content.res.ColorStateList.valueOf(0xff237d36.toInt())
             setOnClickListener{
-                if(!activity.memoryTransferAllowed()){ui("Сначала останови разговор.");return@setOnClickListener}
-                android.app.AlertDialog.Builder(activity).setTitle("Обновить LANA")
-                    .setItems(arrayOf("Выбрать скачанный APK","Открыть страницу обновлений в браузере")){_,which->
-                        if(which==0)picker.launch(arrayOf("application/vnd.android.package-archive","application/octet-stream","*/*"))
-                        else runCatching{activity.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://github.com/sdamlics-hash/lana-live/releases")))}.onFailure{ui("Не удалось открыть браузер.")}
-                    }.show()
+                if (canUpdate()) checkChannel()
+            }
+            setOnLongClickListener {
+                if (canUpdate()) picker.launch(arrayOf("application/vnd.android.package-archive", "application/octet-stream", "*/*"))
+                true
             }
         }
         val i=parent.indexOfChild(anchor);parent.addView(button,i);parent.addView(label,i+1)
-        ui("Сборка "+version()+" · локальное обновление с проверкой подписи")
+        ui("Сборка "+version()+" · удержи кнопку для выбора APK")
     }
-    @Suppress("DEPRECATION") private fun verify(file:File){
+    @Suppress("DEPRECATION") private fun verify(file:File, expected: Long? = null){
         val flags=if(Build.VERSION.SDK_INT>=28)PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES
         val pm=activity.packageManager
         val current=pm.getPackageInfo(activity.packageName,flags)
@@ -54,32 +57,123 @@ internal class LanaUpdater(private val activity:MainActivity){
             return signatures.orEmpty().map{it.toCharsString()}.toSet()
         }
         val v=if(Build.VERSION.SDK_INT>=28)next.longVersionCode else next.versionCode.toLong()
+        require(expected == null || v == expected)
         require(LanaOfflineSetupPolicy.updateAllowed(current.packageName,next.packageName,version(),v,signers(current),signers(next)))
     }
-    private fun stage(uri:Uri){
-        if(busy)return
-        ui("Проверяю APK…",true)
-        Thread{
-            val part=File(dir,"offline-update.part.apk")
-            val ok=runCatching{
-                check(dir.isDirectory||dir.mkdirs())
-                requireNotNull(activity.contentResolver.openInputStream(uri)).use{input->
-                    part.outputStream().use{output->
-                        val buffer=ByteArray(65536);var total=0L
-                        while(true){val n=input.read(buffer);if(n<0)break;require(n>0);total+=n;require(total<=250L*1024*1024);output.write(buffer,0,n)}
-                        output.fd.sync()
+    private fun canUpdate(): Boolean {
+        if (busy) return false
+        if (activity.memoryTransferAllowed()) return true
+        ui("Сначала останови разговор.")
+        return false
+    }
+
+    private fun checkChannel() {
+        transfer("Проверяю обновление…", "Не удалось скачать или проверить обновление. Проверь интернет и повтори.") { part ->
+            val manifest = open(CHANNEL) { input ->
+                val bytes = java.io.ByteArrayOutputStream().also { output ->
+                    val buffer = ByteArray(4096)
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        require(output.size() + count <= 16000)
+                        output.write(buffer, 0, count)
                     }
+                }.toByteArray()
+                LanaUpdateManifest.parse(bytes.toString(Charsets.UTF_8))
+            }
+            if (manifest.version <= version()) return@transfer false
+            open(manifest.url) { input -> copy(input, part, manifest.size) }
+            require(part.length() == manifest.size)
+            val digest = MessageDigest.getInstance("SHA-256")
+            part.inputStream().use { input ->
+                val buffer = ByteArray(65536)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    digest.update(buffer, 0, count)
                 }
-                verify(part)
-                check(!apk.exists()||apk.delete());check(part.renameTo(apk))
-            }.isSuccess
+            }
+            require(digest.digest().joinToString("") { "%02x".format(it) } == manifest.sha256)
+            verify(part, manifest.version)
+            true
+        }
+    }
+
+    private fun stage(uri: Uri) {
+        if (!canUpdate()) return
+        transfer("Проверяю APK…", "APK не прошёл проверку: нужна более новая LANA с прежней подписью.") { part ->
+            requireNotNull(activity.contentResolver.openInputStream(uri)).use { input ->
+                copy(input, part, 250L * 1024 * 1024)
+            }
+            verify(part)
+            true
+        }
+    }
+
+    private fun copy(input: InputStream, file: File, limit: Long) {
+        file.outputStream().use { output ->
+            val buffer = ByteArray(65536)
+            var total = 0L
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                total += count
+                require(total <= limit)
+                output.write(buffer, 0, count)
+            }
+            output.fd.sync()
+        }
+    }
+
+    private fun transfer(progress: String, error: String, stage: (File) -> Boolean) {
+        ui(progress, true)
+        Thread {
+            val part = File(dir, "offline-update.part.apk")
+            val result = runCatching {
+                check(dir.isDirectory || dir.mkdirs())
+                if (!stage(part)) return@runCatching false
+                android.system.Os.rename(part.absolutePath, apk.absolutePath)
+                true
+            }
             part.delete()
-            activity.runOnUiThread{
-                if(!ok)ui("APK не прошёл проверку: нужна более новая LANA с прежней подписью.")
-                else{ui("Подпись и версия проверены.");openInstaller()}
+            activity.runOnUiThread {
+                ui(when (result.getOrNull()) {
+                    true -> "Подпись и версия проверены."
+                    false -> "Установлена актуальная версия."
+                    null -> error
+                })
+                if (result.getOrNull() == true && canUpdate()) openInstaller()
             }
         }.start()
     }
+
+    private fun <T> open(address: String, read: (InputStream) -> T): T {
+        var url = URL(address)
+        repeat(6) {
+            require(url.protocol == "https" && url.userInfo == null && url.port in setOf(-1, 443))
+            require(url.host in HOSTS)
+            val connection = url.openConnection() as HttpsURLConnection
+            connection.instanceFollowRedirects = false
+            connection.connectTimeout = 15000
+            connection.readTimeout = 30000
+            connection.setRequestProperty("User-Agent", "LANA-Updater")
+            try {
+                val code = connection.responseCode
+                if (code == 200) return connection.inputStream.use(read)
+                require(code in setOf(301, 302, 303, 307, 308))
+                url = URL(url, requireNotNull(connection.getHeaderField("Location")))
+            } finally {
+                connection.disconnect()
+            }
+        }
+        error("Too many redirects")
+    }
+
+    private companion object {
+        const val CHANNEL = "https://raw.githubusercontent.com/sdamlics-hash/lana-live/lana-offline-channel/lana-update.json"
+        val HOSTS = setOf("raw.githubusercontent.com", "github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com")
+    }
+
     private fun openInstaller(){
         if(activity.isDestroyed||activity.isFinishing)return
         try{

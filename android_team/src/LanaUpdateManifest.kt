@@ -14,7 +14,7 @@ internal data class LanaUpdateManifest(val version: Long, val url: String, val s
             val version = data.getLong("versionCode")
             val url = data.getString("apkUrl")
             val uri = URI(url)
-            require(uri.scheme == "https" && uri.host == "github.com" && uri.userInfo == null && uri.query == null && uri.fragment == null)
+            require(uri.scheme == "https" && uri.host == "github.com" && uri.port in setOf(-1, 443) && uri.userInfo == null && uri.query == null && uri.fragment == null)
             require(uri.path.matches(Regex("/sdamlics-hash/lana-live/releases/download/lana-stable-[0-9]+/LANA-STABLE-VOICE\\.apk")))
             require(uri.path.contains("/lana-stable-$version/"))
             val digest = data.getString("sha256").lowercase(java.util.Locale.ROOT)

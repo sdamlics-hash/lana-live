@@ -13,7 +13,33 @@ def replace(s,old,new):
     return s.replace(old,new)
 def change(name,old,new):
     p=src/name;p.write_text(replace(p.read_text(),old,new))
+manifest=out/'app/src/main/AndroidManifest.xml'
+manifest_text=replace(manifest.read_text(),
+    '<uses-permission android:name="android.permission.INTERNET" tools:node="remove" />',
+    '<uses-permission android:name="android.permission.INTERNET" />')
+import re
+manifest_text=replace(manifest_text,
+    '<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />','')
+manifest_text, removed = re.subn(
+    r'<service\s+android:name="\.ScreenCaptureService"[^>]*/>', '', manifest_text)
+assert removed == 1
+manifest.write_text(manifest_text)
+for file in (src/'LanaUpdateManifest.kt', tests/'LanaUpdateManifestTest.kt'):
+    file.write_text(file.read_text().replace('lana-stable-', 'lana-offline-').replace('LANA-STABLE-VOICE', 'LANA-OFFLINE'))
+
 p=src/'MainActivity.kt';s=p.read_text()
+# The update permission must not reactivate legacy server checks or screen uploads.
+a=s.index('    private val capturePermission =')
+b=s.index('    override fun onCreate',a)
+s=s[:a]+s[b:]
+a=s.index('        val legacyPrefs =')
+b=s.index('        historyView =',a)
+s=s[:a]+'        for (id in listOf(R.id.legacyServerMode, R.id.coreTestButton, R.id.coreServerUrl,\n            R.id.coreToken, R.id.connectionStatusText, R.id.serverUrl, R.id.startButton)) {\n            findViewById<android.view.View>(id).visibility = android.view.View.GONE\n        }\n'+s[b:]
+a=s.index('        serverUrl = findViewById')
+b=s.index('    private fun startVoice()',a)
+s=s[:a]+'    }\n'+s[b:]
+s=replace(s,'        restoreConnection()\n','')
+s=replace(s,'    private lateinit var serverUrl: EditText\n','')
 s=replace(s,'        // Offline candidate: no network updater.','        lanaUpdater.install(status)')
 s=replace(s,'prefs.getString("voice_name","").orEmpty(),prefs.getInt("voice_rate",100)', 'prefs.getString("confirmed_offline_voice","").orEmpty(),prefs.getInt("voice_rate",100)')
 # Only show installed, local Russian voices. Selection is not approval.

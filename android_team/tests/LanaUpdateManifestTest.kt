@@ -16,6 +16,7 @@ class LanaUpdateManifestTest {
         for ((key, value) in listOf("package" to "other.app", "schema" to 2, "size" to 0,
             "size" to LanaUpdateManifest.MAX_SIZE + 1, "sha256" to "abc", "versionCode" to 1,
             "apkUrl" to "https://example.com/app.apk", "apkUrl" to "http://github.com/app.apk",
+            "apkUrl" to "https://github.com:8443/sdamlics-hash/lana-live/releases/download/lana-stable-1025/LANA-STABLE-VOICE.apk",
             "apkUrl" to "https://github.com/sdamlics-hash/lana-live/releases/download/lana-stable-1025/LANA-STABLE-VOICE.apk?token=x")) {
             try { LanaUpdateManifest.parse(valid().put(key, value).toString()); fail("Must reject $key") }
             catch (_: IllegalArgumentException) { }
