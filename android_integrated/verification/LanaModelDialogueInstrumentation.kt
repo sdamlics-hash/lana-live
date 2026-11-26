@@ -18,28 +18,38 @@ class LanaModelDialogueInstrumentation : Instrumentation() {
         try {
             runOnMainSync { model = LanaLocalInference(targetContext) }
             val inference = checkNotNull(model)
-            fun verify(question: String, previous: List<LanaLegacyTurn>, expected: Regex) {
+            fun verify(label: String, question: String, previous: List<LanaLegacyTurn>, expected: Regex) {
                 val done = CountDownLatch(1)
                 var matched = false
+                var category = "missing_callback"
                 runOnMainSync {
                     inference.ask(question, previous) { answer, error ->
                         matched = error == null && answer != null &&
                             LanaOfflineCore.checkedModelReply(question, answer) != LanaOfflineCore.REPHRASE &&
                             expected.containsMatchIn(answer)
+                        category = when {
+                            error != null -> "runtime_error"
+                            answer.isNullOrBlank() -> "empty"
+                            matched -> "matched"
+                            LanaOfflineCore.checkedModelReply(question, answer) == LanaOfflineCore.REPHRASE -> "echo"
+                            else -> "unexpected_answer"
+                        }
                         done.countDown()
                     }
                 }
-                check(done.await(120, TimeUnit.SECONDS) && matched) { "Expected model answer was not verified." }
+                val finished = done.await(120, TimeUnit.SECONDS)
+                android.util.Log.i("LanaModelCheck", label + "=" + if (finished) category else "timeout")
+                check(finished && matched) { label + ": " + if (finished) category else "timeout" }
             }
-            verify("Сколько будет 12 плюс 5? Ответь одним числом.", emptyList(), Regex("\\b17\\b"))
-            verify("Как называется город из предыдущего сообщения? Ответь одним словом.",
+            verify("arithmetic", "Сколько будет 12 плюс 5? Ответь одним числом.", emptyList(), Regex("\\b17\\b"))
+            verify("context", "Как называется город из предыдущего сообщения? Ответь одним словом.",
                 listOf(LanaLegacyTurn("user", "Мой город — Рига."), LanaLegacyTurn("assistant", "Поняла.")),
                 Regex("риг[ауе]", RegexOption.IGNORE_CASE))
-            verify("Назови столицу Франции одним словом.", emptyList(),
+            verify("knowledge", "Назови столицу Франции одним словом.", emptyList(),
                 Regex("париж", RegexOption.IGNORE_CASE))
             finish(Activity.RESULT_OK, Bundle().apply { putString("stream", "LANA_REAL_MODEL_OK\n") })
         } catch (error: Throwable) {
-            finish(Activity.RESULT_CANCELED, Bundle().apply { putString("stream", "LANA_REAL_MODEL_FAILED: ${error.javaClass.simpleName}\n") })
+            finish(Activity.RESULT_CANCELED, Bundle().apply { putString("stream", "LANA_REAL_MODEL_FAILED: ${error.javaClass.simpleName}: ${error.message.orEmpty()}\n") })
         } finally {
             runOnMainSync { model?.close() }
         }
