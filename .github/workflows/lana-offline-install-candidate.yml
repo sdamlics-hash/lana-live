@@ -1,7 +1,7 @@
-name: LANA 1057 Button Update Candidate
+name: LANA 1059 Button Update Candidate
 on:
   push:
-    branches: ['work/lana-button-update']
+    branches: ['work/lana-voice-1059']
 permissions:
   contents: read
   actions: read
@@ -29,10 +29,10 @@ jobs:
       - name: Generate offline and rollback candidates
         run: |
           python android_recovery/prepare_recovery.py /tmp/lana-install
-          git worktree add --detach /tmp/lana-baseline 804f132aa7995cd089eade60555ed6e9e43a7712
+          git worktree add --detach /tmp/lana-baseline 17e8978c055ac925d6a791999857ba971f1ecc3d
           (cd /tmp/lana-baseline && python android_recovery/prepare_recovery.py /tmp/lana-rollback)
-          python android_delivery/prepare_identity.py /tmp/lana-install 1057
-          python android_delivery/prepare_identity.py /tmp/lana-rollback 1058
+          python android_delivery/prepare_identity.py /tmp/lana-install 1059
+          python android_delivery/prepare_identity.py /tmp/lana-rollback 1060
       - name: Compile and test offline update
         working-directory: /tmp/lana-install
         run: gradle --no-daemon testDebugUnitTest assembleDebug
@@ -46,7 +46,7 @@ jobs:
           "$TOOLS/aapt" dump permissions /tmp/lana-install/app/build/outputs/apk/debug/app-debug.apk | tee /tmp/lana-offline-permissions.txt
           grep -Fq android.permission.INTERNET /tmp/lana-offline-permissions.txt
           "$TOOLS/aapt" dump permissions /tmp/lana-rollback/app/build/outputs/apk/debug/app-debug.apk > /tmp/lana-rollback-permissions.txt
-          if grep -Fq android.permission.INTERNET /tmp/lana-rollback-permissions.txt; then exit 1; fi
+          grep -Fq android.permission.INTERNET /tmp/lana-rollback-permissions.txt
       - name: Restore persistent signing key
         env:
           GH_TOKEN: ${{ github.token }}
@@ -105,7 +105,7 @@ jobs:
           echo '7550f583a06f10cd045a9bd6e321b55c8fe47ecd0b3f38de8039a2669b6ae720  /tmp/lana-1048.apk' | sha256sum -c -
           "$TOOLS/apksigner" verify --print-certs /tmp/lana-1048.apk > /tmp/lana-old-cert.txt
           mkdir -p /tmp/lana-delivery
-          for item in 'install:1057:LANA-OFFLINE-1057-TEST.apk' 'rollback:1058:LANA-ROLLBACK-1058.apk'; do
+          for item in 'install:1059:LANA-OFFLINE-1059-TEST.apk' 'rollback:1060:LANA-ROLLBACK-1060.apk'; do
             IFS=: read -r dir version filename <<< "$item"
             apk="/tmp/lana-$dir/app/build/outputs/apk/debug/app-debug.apk"
             "$TOOLS/aapt" dump badging "$apk" | grep -F "package: name='ai.dreibus.lanalive.stablevoice' versionCode='$version'"
@@ -122,7 +122,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: LANA-1057-OFFLINE-TEST-AND-ROLLBACK
+          name: LANA-1059-OFFLINE-TEST-AND-ROLLBACK
           path: /tmp/lana-delivery/
           if-no-files-found: error
           retention-days: 14
@@ -135,7 +135,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: LANA-1057-OFFLINE-TEST-AND-ROLLBACK
+          name: LANA-1059-OFFLINE-TEST-AND-ROLLBACK
           path: delivery
       - name: Publish signed LANA to its dedicated offline update channel
         env:
@@ -145,10 +145,10 @@ jobs:
         run: |
           set -euo pipefail
           sha256sum -c SHA256SUMS.txt
-          cp LANA-OFFLINE-1057-TEST.apk LANA-OFFLINE.apk
-          tag=lana-offline-1057
+          cp LANA-OFFLINE-1059-TEST.apk LANA-OFFLINE.apk
+          tag=lana-offline-1059
           if ! gh release view "$tag" >/dev/null 2>&1; then
-            gh release create "$tag" LANA-OFFLINE.apk --target "$GITHUB_SHA" --latest=false --title "LANA 1057" --notes "Кандидат с обновлением по кнопке. Голос проверяется на Samsung."
+            gh release create "$tag" LANA-OFFLINE.apk --target "$GITHUB_SHA" --latest=false --title "LANA 1059" --notes "Русская офлайн-озвучка использует доступный голос сразу после обновления. Звук проверяется на Samsung."
           fi
           gh release download "$tag" --pattern LANA-OFFLINE.apk --output downloaded.apk
           cmp downloaded.apk LANA-OFFLINE.apk
@@ -156,8 +156,8 @@ jobs:
           import hashlib, json
           from pathlib import Path
           apk = Path("LANA-OFFLINE.apk")
-          payload = {"schema": 1, "package": "ai.dreibus.lanalive.stablevoice", "versionCode": 1057,
-                     "apkUrl": "https://github.com/sdamlics-hash/lana-live/releases/download/lana-offline-1057/LANA-OFFLINE.apk",
+          payload = {"schema": 1, "package": "ai.dreibus.lanalive.stablevoice", "versionCode": 1059,
+                     "apkUrl": "https://github.com/sdamlics-hash/lana-live/releases/download/lana-offline-1059/LANA-OFFLINE.apk",
                      "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(), "size": apk.stat().st_size}
           Path("lana-update.json").write_text(json.dumps(payload) + "\n")
           PYJSON
@@ -181,4 +181,4 @@ jobs:
             args=()
           fi
           gh api --method PUT "repos/$GH_REPO/contents/lana-update.json" -f branch="$channel" \
-            -f message="Publish LANA 1057 update metadata" -f content="$(base64 -w0 lana-update.json)" "${args[@]}"
+            -f message="Publish LANA 1059 update metadata" -f content="$(base64 -w0 lana-update.json)" "${args[@]}"

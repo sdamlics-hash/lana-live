@@ -6,13 +6,16 @@ class LanaOfflineSetupPolicyTest {
     private val anna=pVoice("Anna")
     private val male=pVoice("Aleksandr")
     private fun pVoice(n:String,l:String="ru",net:Boolean=false,missing:Boolean=false)=LanaOfflineSetupPolicy.Voice(n,l,net,missing)
-    @Test fun noDefault(){assertNull(p.selected(listOf(male,anna),null))}
-    @Test fun blank(){assertNull(p.selected(listOf(anna),""))}
+    @Test fun usesInstalledRussianVoiceWithoutSetup(){assertEquals("Aleksandr",p.selected(listOf(male,anna),null))}
+    @Test fun prefersEligibleSystemDefault(){assertEquals("Anna",p.selected(listOf(male,anna),null,"Anna"))}
+    @Test fun skipsIneligibleSystemDefault(){assertEquals("Anna",p.selected(listOf(male.copy(network=true),anna),null,"Aleksandr"))}
+    @Test fun savedVoiceWinsOverSystemDefault(){assertEquals("Anna",p.selected(listOf(male,anna),"Anna","Aleksandr"))}
+    @Test fun blank(){assertEquals("Anna",p.selected(listOf(anna),""))}
     @Test fun explicit(){assertEquals("Anna",p.selected(listOf(male,anna),"Anna"))}
     @Test fun missing(){assertNull(p.selected(listOf(anna.copy(missing=true)),"Anna"))}
     @Test fun network(){assertNull(p.selected(listOf(anna.copy(network=true)),"Anna"))}
     @Test fun wrongLanguage(){assertNull(p.selected(listOf(anna.copy(language="en")),"Anna"))}
-    @Test fun noSubstitution(){assertNull(p.selected(listOf(male),"Anna"))}
+    @Test fun usesEligibleFallbackWhenSavedVoiceDisappears(){assertEquals("Aleksandr",p.selected(listOf(male),"Anna"))}
     @Test fun duplicate(){assertEquals(1,p.available(listOf(anna,anna)).size)}
     @Test fun sorting(){assertEquals(listOf("Aleksandr","Anna"),p.available(listOf(anna,male)).map{it.name})}
     @Test fun emptyNames(){assertTrue(p.available(listOf(pVoice(""))).isEmpty())}
