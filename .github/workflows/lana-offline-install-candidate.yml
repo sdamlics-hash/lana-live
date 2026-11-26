@@ -33,6 +33,16 @@ jobs:
           (cd /tmp/lana-baseline && python android_recovery/prepare_recovery.py /tmp/lana-rollback)
           python android_delivery/prepare_identity.py /tmp/lana-install 1059
           python android_delivery/prepare_identity.py /tmp/lana-rollback 1060
+      - name: Resolve Maven Central dependencies through Google mirror
+        run: |
+          python - <<'PYMAVEN'
+          from pathlib import Path
+          for location in ("/tmp/lana-install", "/tmp/lana-rollback"):
+              path = Path(location) / "settings.gradle.kts"
+              original = path.read_text()
+              assert original.count("mavenCentral()") == 2
+              path.write_text(original.replace("mavenCentral()", 'maven { url = uri("https://maven-central.storage-download.googleapis.com/maven2") }; mavenCentral()'))
+          PYMAVEN
       - name: Compile and test offline update
         working-directory: /tmp/lana-install
         run: gradle --no-daemon testDebugUnitTest assembleDebug
