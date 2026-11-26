@@ -14,7 +14,7 @@ class LanaModelDialogueInstrumentation : Instrumentation() {
         val expected: Regex,
         val previous: List<LanaLegacyTurn> = emptyList()
     )
-    private data class Observation(val outcome: String, val snippet: String)
+    private data class Observation(val outcome: String, val snippet: String, val elapsedMs: Long = 0, val pssKiB: Long = 0)
 
     override fun onCreate(arguments: Bundle?) {
         super.onCreate(arguments)
@@ -37,16 +37,13 @@ class LanaModelDialogueInstrumentation : Instrumentation() {
                 Scenario("definition", "Что такое компас? Ответь одним коротким предложением.",
                     Regex("направлен|ориентир|сторон[уы] света", RegexOption.IGNORE_CASE))
             )
-            val concise = "Ты Лана. Отвечай по-русски и по существу. Если просят одно слово или число, дай только его. Если не знаешь, скажи об этом."
-            val counts = mutableMapOf("baseline" to 0, "concise" to 0)
+            var matched = 0
             for (scenario in scenarios) {
-                for ((label, instruction) in listOf("baseline" to null, "concise" to concise)) {
-                    val result = observe(inference, scenario, instruction)
-                    if (result.outcome == "matched") counts[label] = counts.getValue(label) + 1
-                    report.appendLine("${scenario.name} ${label}: ${result.outcome}; synthetic answer=${result.snippet}")
-                }
+                val result = observe(inference, scenario)
+                if (result.outcome == "matched") matched++
+                report.appendLine("${scenario.name}: ${result.outcome}; elapsed_ms=${result.elapsedMs}; callback_pss_kib=${result.pssKiB}; synthetic answer=${result.snippet}")
             }
-            report.appendLine("LANA_MODEL_EVALUATION_COMPLETE baseline=${counts["baseline"]}/5 concise=${counts["concise"]}/5")
+            report.appendLine("LANA_MODEL_SIZE_BENCHMARK_COMPLETE matched=$matched/${scenarios.size}")
             finish(Activity.RESULT_OK, Bundle().apply { putString("stream", report.toString()) })
         } catch (error: Exception) {
             report.appendLine("LANA_MODEL_EVALUATION_FAILED ${error.javaClass.simpleName}: ${error.message.orEmpty()}")
@@ -56,10 +53,11 @@ class LanaModelDialogueInstrumentation : Instrumentation() {
         }
     }
 
-    private fun observe(inference: LanaLocalInference, scenario: Scenario, instruction: String?): Observation {
+    private fun observe(inference: LanaLocalInference, scenario: Scenario): Observation {
         val done = CountDownLatch(1)
         var result = Observation("missing_callback", "")
         lateinit var operation: LanaConversationRuntime.Cancel
+        val startedAt = android.os.SystemClock.elapsedRealtime()
         runOnMainSync {
             val complete: (String?, String?) -> Unit = { answer, error ->
                 val outcome = when {
@@ -69,11 +67,11 @@ class LanaModelDialogueInstrumentation : Instrumentation() {
                     scenario.expected.containsMatchIn(answer) -> "matched"
                     else -> "unexpected_answer"
                 }
-                result = Observation(outcome, answer.orEmpty().replace(Regex("\\s+"), " ").take(160))
+                result = Observation(outcome, answer.orEmpty().replace(Regex("\\s+"), " ").take(160),
+                    android.os.SystemClock.elapsedRealtime() - startedAt, android.os.Debug.getPss())
                 done.countDown()
             }
-            operation = if (instruction == null) inference.ask(scenario.text, scenario.previous, complete = complete)
-                else inference.ask(scenario.text, scenario.previous, instruction, complete)
+            operation = inference.ask(scenario.text, scenario.previous, complete = complete)
         }
         if (!done.await(120, TimeUnit.SECONDS)) {
             runOnMainSync { operation.cancel() }
