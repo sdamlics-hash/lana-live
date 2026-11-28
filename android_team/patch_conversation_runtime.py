@@ -7,6 +7,7 @@ def install(out: Path, root: Path):
         (src/name).write_text((root/'android_team/src'/name).read_text())
     (tests/'LanaBackgroundTeamTest.kt').write_text((root/'android_team/tests/LanaBackgroundTeamTest.kt').read_text())
     (tests/'LanaDialogueTimingTest.kt').write_text((root/'android_team/tests/LanaDialogueTimingTest.kt').read_text())
+    (tests/'LanaSpeechCancellationTest.kt').write_text((root/'android_team/tests/LanaSpeechCancellationTest.kt').read_text())
     (tests/'LanaSpokenTextTest.kt').write_text((root/'android_team/tests/LanaSpokenTextTest.kt').read_text())
     (tests/'LanaConversationRuntimeTest.kt').write_text((root/'android_team/tests/LanaConversationRuntimeTest.kt').read_text())
     (tests/'LanaDialogueRecallTest.kt').write_text((root/'android_team/tests/LanaDialogueRecallTest.kt').read_text())

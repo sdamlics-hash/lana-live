@@ -14,8 +14,15 @@ import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
 /** Service-owned output. No Activity context, raw key logging, audio reuse, or automatic paid retries. */
-internal class LanaRuntimeSpeaker(private val context: Context) : LanaConversationRuntime.Speaker {
+internal class LanaRuntimeSpeaker(private val context: Context, private val diagnostic: (String) -> Unit = {}) : LanaConversationRuntime.Speaker {
     private val main = Handler(Looper.getMainLooper())
+    // Delivery must survive STOP so a stale worker result can delete its temporary file.
+    private val delivery = Handler(Looper.getMainLooper())
+    private var httpCancellation: LanaHttpCancellation? = null
+    private var startedAt = 0L
+    private fun elapsed() = (android.os.SystemClock.elapsedRealtime() - startedAt).coerceAtLeast(0L)
+    private fun report(stage: String) { runCatching { diagnostic("voice_" + stage + " ms=" + elapsed()) } }
+    private fun notifyStarted() { report("started"); onStarted?.invoke() }
     private val worker = ThreadPoolExecutor(1,1,30,TimeUnit.SECONDS,ArrayBlockingQueue(2),{ task -> Thread(task,"LanaVoiceOutput").apply { isDaemon = true } })
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
     private var focus: android.media.AudioFocusRequest? = null
@@ -47,12 +54,15 @@ internal class LanaRuntimeSpeaker(private val context: Context) : LanaConversati
             try { pending?.invoke() } catch (_: Exception) { finish("Системный голос не запустился. Ответ доступен текстом.") }
         }
         tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-            override fun onStart(id: String?) { main.post { if (id != null && id == utterance) onStarted?.invoke() } }
+            override fun onStart(id: String?) { main.post { if (id != null && id == utterance) notifyStarted() } }
             override fun onDone(id: String?) { main.post { if (id != null && id == utterance) finish(null) } }
             override fun onError(id: String?) { main.post { if (id != null && id == utterance) finish("Ошибка системной озвучки. Ответ доступен текстом.") } }
         })
     }
     private fun releaseOutput() {
+        httpCancellation?.cancel { connection ->
+            Thread({ runCatching { connection.disconnect() } }, "LanaSpeechCancel").apply { isDaemon = true }.start()
+        }; httpCancellation = null
         future?.cancel(true); future = null
         worker.purge() // Drop cancelled queued speech jobs; no extra provider requests.
         waiting = null; utterance = null
@@ -74,6 +84,7 @@ internal class LanaRuntimeSpeaker(private val context: Context) : LanaConversati
         val spoken = LanaSpokenText.clean(text)
         if (spoken.isBlank()) { complete(null); return LanaConversationRuntime.Cancel {} }
         val id = generation
+        startedAt = android.os.SystemClock.elapsedRealtime()
         done = complete; onStarted = started
         main.postDelayed({ if (generation == id && done != null) finish("Озвучка не завершилась вовремя. Ответ доступен текстом.") },120000)
         if (voice.cloud) cloud(id,spoken,voice) else system(id,spoken,voice)
@@ -99,14 +110,28 @@ internal class LanaRuntimeSpeaker(private val context: Context) : LanaConversati
     }
     private fun cloud(id: Long, text: String, voice: LanaRuntimeVoice) {
         if (voice.address.isBlank() || voice.token.length < 32) { finish("Голос не подключён. Ответ доступен текстом."); return }
+        val cancellation = LanaHttpCancellation()
+        httpCancellation = cancellation
         future = try { worker.submit {
-            val result = runCatching { LanaSpeechClient.audio(voice.address,voice.token,text) }
-            main.post {
-                if (generation != id || done == null) return@post
-                val bytes = result.getOrNull()
-                if (bytes == null) { finish("Голосовой ответ не получен. Ответ доступен текстом; автоматического повтора нет."); return@post }
+            var staged: File? = null
+            val result = runCatching {
+                val bytes = LanaSpeechClient.audio(voice.address,voice.token,text,cancellation)
+                cancellation.checkActive()
+                val file = File.createTempFile("lana-runtime-voice-",".mp3",context.cacheDir)
+                staged = file
+                file.writeBytes(bytes)
+                cancellation.checkActive()
+                file
+            }
+            if (result.isFailure) staged?.delete()
+            delivery.post {
+                val file = result.getOrNull()
+                if (generation != id || done == null) { file?.delete(); return@post }
+                httpCancellation = null
+                if (file == null) { finish("Голосовой ответ не получен. Ответ доступен текстом; автоматического повтора нет."); return@post }
                 try {
-                    val file = File.createTempFile("lana-runtime-voice-",".mp3",context.cacheDir); clip = file; file.writeBytes(bytes)
+                    clip = file
+                    report("cloud_file_ready")
                     val audio = MediaPlayer(); player = audio
                     var prepared = false
                     audio.setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANT).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
@@ -115,7 +140,7 @@ internal class LanaRuntimeSpeaker(private val context: Context) : LanaConversati
                             try {
                                 prepared = true
                                 if (!acquireFocus()) finish("Звук занят другим приложением. Ответ доступен текстом.")
-                                else { audio.start(); onStarted?.invoke() }
+                                else { audio.start(); notifyStarted() }
                             } catch (_: Exception) { finish("Не удалось запустить проигрыватель. Ответ доступен текстом.") }
                         }
                     }
