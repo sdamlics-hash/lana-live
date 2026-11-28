@@ -64,6 +64,7 @@ internal class LanaRuntimeTransport(private val context: Context, private val di
                 Thread({ runCatching { connection.disconnect() } },"LanaHttpCancel").apply { isDaemon = true }.start()
             }
             future.cancel(true)
+            worker.purge() // Cancelled queued requests must not block a fresh turn after STOP.
         }
     }
     /** Local-only memory lookup. Never sends a model request or changes saved dialogue. */

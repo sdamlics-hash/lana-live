@@ -133,4 +133,62 @@ class LanaConversationRuntimeTest {
         r.ask(request(),voice(),1);assertEquals(0,t.callbacks.size)
         assertEquals(LanaConversationRuntime.Phase.STOPPED,r.snapshot.phase)
     }
+
+    @Test fun synchronousSuccessThenTransportThrowsDoesNotEraseAnswerOrInterruptSpeech() {
+        val t = object : LanaConversationRuntime.Transport {
+            override fun ask(request: LanaRuntimeRequest, complete: (String?, String?) -> Unit): LanaConversationRuntime.Cancel {
+                complete("answer", null)
+                throw IllegalStateException("late transport failure")
+            }
+        }
+        val s = Speaker()
+        val r = LanaConversationRuntime(t, s)
+        r.ask(request(), voice(), 1)
+        assertEquals(LanaConversationRuntime.Phase.PREPARING_VOICE, r.snapshot.phase)
+        assertEquals("answer", r.snapshot.answer)
+        s.started!!(); s.complete!!(null)
+        assertEquals(LanaConversationRuntime.Phase.READY, r.snapshot.phase)
+    }
+    @Test fun synchronousSpeechSuccessThenThrowCannotReplaceReadyWithError() {
+        val s = object : LanaConversationRuntime.Speaker {
+            override fun speak(text: String, voice: LanaRuntimeVoice, started: () -> Unit, complete: (String?) -> Unit): LanaConversationRuntime.Cancel {
+                started(); complete(null)
+                throw IllegalStateException("late speech failure")
+            }
+        }
+        val r = LanaConversationRuntime(Transport(), s)
+        r.say("answer", voice(), 1)
+        assertEquals(LanaConversationRuntime.Phase.READY, r.snapshot.phase)
+        assertNull(r.snapshot.error)
+    }
+    @Test fun reentrantDuplicateDuringPersistenceIsIgnored() {
+        val t = Transport(); val s = Speaker()
+        var commits = 0
+        val r = LanaConversationRuntime(t, s, { _, _ ->
+            commits++
+            if (commits == 1) t.callbacks.single()("duplicate", null)
+            true
+        })
+        r.ask(request(), voice(), 1)
+        t.callbacks.single()("original", null)
+        assertEquals(1, commits)
+        assertEquals(1, s.calls)
+        assertEquals("original", r.snapshot.answer)
+    }
+    @Test fun cancelledQueuedJobsDoNotPreventNewTurn() {
+        val worker = java.util.concurrent.ThreadPoolExecutor(1, 1, 30,
+            java.util.concurrent.TimeUnit.SECONDS, java.util.concurrent.ArrayBlockingQueue<Runnable>(2))
+        val release = java.util.concurrent.CountDownLatch(1)
+        try {
+            worker.submit { release.await() }
+            val a = worker.submit { error("cancelled job A ran") }
+            val b = worker.submit { error("cancelled job B ran") }
+            assertEquals(0, worker.queue.remainingCapacity())
+            a.cancel(true); b.cancel(true); worker.purge()
+            assertEquals(2, worker.queue.remainingCapacity())
+            val latest = worker.submit(java.util.concurrent.Callable { "new turn" })
+            release.countDown()
+            assertEquals("new turn", latest.get(5, java.util.concurrent.TimeUnit.SECONDS))
+        } finally { release.countDown(); worker.shutdownNow() }
+    }
 }

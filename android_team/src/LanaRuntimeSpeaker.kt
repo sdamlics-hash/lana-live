@@ -54,6 +54,7 @@ internal class LanaRuntimeSpeaker(private val context: Context) : LanaConversati
     }
     private fun releaseOutput() {
         future?.cancel(true); future = null
+        worker.purge() // Drop cancelled queued speech jobs; no extra provider requests.
         waiting = null; utterance = null
         runCatching { player?.release() }; player = null
         clip?.delete(); clip = null

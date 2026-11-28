@@ -44,7 +44,7 @@ internal class LanaConversationRuntime(
         if (generation != id) return
         var returned = false
         val cancel = try { transport.ask(request) { answer, error ->
-            if (generation != id || snapshot.phase != Phase.THINKING) return@ask
+            if (returned || generation != id || snapshot.phase != Phase.THINKING) return@ask
             returned = true; operation = null
             if (error != null || answer.isNullOrBlank()) {
                 publish(snapshot.copy(phase=Phase.ERROR,error=error ?: "Сервер вернул пустой ответ"))
@@ -53,7 +53,7 @@ internal class LanaConversationRuntime(
                 if (generation == id) output(id,answer,voice,saved)
             }
         } } catch (_: Exception) {
-            if (generation == id) publish(snapshot.copy(phase=Phase.ERROR,error="Не удалось запустить запрос. Автоматического повтора нет."))
+            if (!returned && generation == id) publish(snapshot.copy(phase=Phase.ERROR,error="Не удалось запустить запрос. Автоматического повтора нет."))
             return
         }
         if (!returned && generation == id) operation = cancel else runCatching { cancel.cancel() }
@@ -72,11 +72,11 @@ internal class LanaConversationRuntime(
         val cancel = try { speaker.speak(answer,voice,{
             if (generation == id && snapshot.phase == Phase.PREPARING_VOICE) publish(snapshot.copy(phase=Phase.SPEAKING))
         }) { error ->
-            if (generation != id || snapshot.phase !in setOf(Phase.PREPARING_VOICE,Phase.SPEAKING)) return@speak
+            if (returned || generation != id || snapshot.phase !in setOf(Phase.PREPARING_VOICE,Phase.SPEAKING)) return@speak
             returned = true; operation = null
             publish(snapshot.copy(phase=if (error == null) Phase.READY else Phase.ERROR,error=error))
         } } catch (_: Exception) {
-            if (generation == id) publish(snapshot.copy(phase=Phase.ERROR,error="Не удалось запустить озвучку. Ответ доступен текстом."))
+            if (!returned && generation == id) publish(snapshot.copy(phase=Phase.ERROR,error="Не удалось запустить озвучку. Ответ доступен текстом."))
             return
         }
         if (!returned && generation == id) operation = cancel else runCatching { cancel.cancel() }
